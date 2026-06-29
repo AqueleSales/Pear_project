@@ -1,0 +1,77 @@
+# Velocity Configuration File
+# Documentation: https://docs.papermc.io/velocity/player-information-forwarding
+
+# Configuration version
+config-version = "2.7"
+
+# Server bind address
+bind = "0.0.0.0:25565"
+
+# Motd (Message of the Day)
+motd = "&cNomad Server &7- Dynamic Host Migration"
+
+# Show ping list as % of max players
+show-max-players = false
+max-players = 100
+
+# Allow unregistered/cracked players (disable for online-mode)
+online-mode = true
+force-key-authentication = false
+
+# Announce proxy commands to players (e.g., /server, /glist)
+announce-proxy-commands = false
+
+# Player information forwarding mode
+# "none" - no forwarding
+# "legacy" - BungeeCord legacy forwarding (requires plugin)
+# "modern" - Velocity modern forwarding
+player-info-forwarding-mode = "modern"
+forwarding-secret = "noms3cureforw4rdingk3y"  # Change this!
+
+# Velocity supports version 1.8-1.20.x
+min-compression-threshold = 256
+
+# Logging
+log-command-executions = false
+log-event-executions = false
+
+[servers]
+# NOMAD Backend - dinamicamente atualizado pelo plugin
+nomad-backend = "127.0.0.1:25565"
+
+# Fallback order
+try = [
+  "nomad-backend"
+]
+
+[advanced]
+# TCP fast open
+tcp-fast-open = false
+# BungeeCord compression default
+compression-level = 4
+# Whether to cache server list results
+cache-server-list = false
+
+# Connection timeouts
+connection-timeout = 5000
+read-timeout = 30000
+write-timeout = 5000
+
+# Login rate limiting
+login-ratelimit = 3000
+
+# Kick message delay
+kick-message-delay = 3
+
+# Velocity does not use compression for client proxy
+compress-client-packets-while-idle = false
+
+# Velocity's default port
+port = 25565
+
+# Enable query protocol support
+enable-query-port = false
+query-port = 25577
+
+# Placeholder for testing
+# backend = "127.0.0.1:25566"

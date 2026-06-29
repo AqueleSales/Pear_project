@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # NOMAD API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NOMAD_API_KEY=${NOMAD_API_KEY:-change-me-in-production}
+      - FLASK_ENV=production
+    volumes:
+      - nomad_data:/data
+      - nomad_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - nomad_network
+
+  # NGINX Reverse Proxy
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - nomad_network
+
+  # PostgreSQL (opcional, para dados mais complexos)
+  # db:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_DB: nomad
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-nomad}
+  #   volumes:
+  #     - nomad_db:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   networks:
+  #     - nomad_network
+
+volumes:
+  nomad_data:
+  nomad_logs:
+  # nomad_db:
+
+networks:
+  nomad_network:
+    driver: bridge
