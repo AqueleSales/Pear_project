@@ -1,0 +1,34 @@
+# Segurança
+.env
+
+# Ambientes Virtuais e Cache
+.venv/
+__pycache__/
+
+# Arquivos Pesados do Minecraft (Mundos e JARs)
+perfis/vanilla/world/
+perfis/vanilla/server.jar
+perfis/vanilla/cache/
+
+# IDEs
+.idea/
+
+# Arquivos Gerados pelo Servidor Minecraft
+perfis/vanilla/logs/
+perfis/vanilla/libraries/
+perfis/vanilla/versions/
+perfis/vanilla/config/
+perfis/vanilla/*.json
+perfis/vanilla/*.yml
+perfis/vanilla/.console_history
+
+# Banco de Dados Local
+*.db
+
+# Arquivos Pesados do Minecraft (Para TODOS os perfis)
+perfis/vanilla/world/
+perfis/*/server.jar
+perfis/*/cache/
+
+# Ignorar pastas temporárias de plugins
+perfis/*/plugins/*/tmp/
