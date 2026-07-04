@@ -1,10 +1,11 @@
 """
 PEAR PROJECT (Nomad Server) - GERENCIADOR DE PERSISTÊNCIA
 Refatorado para operações assíncronas (Non-Blocking I/O) com ThreadPoolExecutor.
-Suporta S3, Google Drive, e servidor local.
+Suporta S3, Google Drive, e servidor local. Com Garbage Collector embutido.
 """
 
 import os
+import glob
 import shutil
 import zipfile
 import hashlib
@@ -98,9 +99,6 @@ class LocalBackend(StorageBackend):
             logger.error(f"Local download error: {e}")
             return False
 
-# Nota: S3Backend e GDriveBackend seguem a mesma lógica estrutural do arquivo original,
-# apenas instancie as bibliotecas boto3/googleapiclient aqui da mesma forma que antes.
-
 # ============================================================================
 # WORLD MANAGER (Assíncrono e Thread-Safe)
 # ============================================================================
@@ -116,8 +114,33 @@ class WorldManager:
         logging.basicConfig(level=logging.INFO)
 
     def _init_backend(self) -> StorageBackend:
-        # Simplificado para o exemplo Local. Adicione as chamadas para S3/GDrive aqui.
         return LocalBackend(self.config)
+
+    def limpar_backups_antigos(self, max_backups=3):
+        """
+        Garbage Collector: Mantém apenas os 'max_backups' mais recentes e deleta o resto.
+        """
+        try:
+            if self.config.backend == "local" and self.config.local_storage_path:
+                pasta_worlds = os.path.join(self.config.local_storage_path, "worlds")
+                padrao_busca = os.path.join(pasta_worlds, "world_*.zip")
+                arquivos_zip = glob.glob(padrao_busca)
+
+                # Ordena a lista do arquivo mais VELHO para o mais NOVO
+                arquivos_zip.sort(key=os.path.getmtime)
+
+                # Se tiver mais arquivos do que o limite, a guilhotina entra em ação
+                if len(arquivos_zip) > max_backups:
+                    qtd_deletar = len(arquivos_zip) - max_backups
+                    arquivos_para_deletar = arquivos_zip[:qtd_deletar]
+
+                    for arquivo in arquivos_para_deletar:
+                        os.remove(arquivo)
+                        logger.info(f"🗑️ Garbage Collector: Backup antigo apagado -> {os.path.basename(arquivo)}")
+                else:
+                    logger.info(f"📦 Garbage Collector: Temos {len(arquivos_zip)} backups. Nenhuma limpeza necessária.")
+        except Exception as e:
+            logger.error(f"❌ Erro ao executar o Garbage Collector: {e}")
 
     def _compress_world_sync(self, world_name: str, output_dir: str) -> Optional[str]:
         """Operação síncrona de compactação isolada na thread."""
@@ -177,8 +200,10 @@ class WorldManager:
 
             if result["status"] == "success":
                 result["file_hash"] = file_hash
+                # 4. Chama o Garbage Collector para limpar os arquivos antigos
+                self.limpar_backups_antigos(max_backups=3)
 
-            # Limpeza do zip temporário
+            # Limpeza do zip temporário da raiz
             try:
                 os.remove(zip_path)
             except OSError:

@@ -1,34 +1,51 @@
-# Segurança
+# ==========================================
+# 1. SEGURANÇA E CHAVES (NUNCA COMMITAR)
+# ==========================================
 .env
+*.key
+forwarding.secret
 
-# Ambientes Virtuais e Cache
+# ==========================================
+# 2. COMPILADOR E EXECUTÁVEIS (PyInstaller)
+# ==========================================
+build/
+dist/
+*.spec
+
+# ==========================================
+# 3. AMBIENTES VIRTUAIS, CACHE E IDEs
+# ==========================================
 .venv/
 __pycache__/
-
-# Arquivos Pesados do Minecraft (Mundos e JARs)
-perfis/vanilla/world/
-perfis/vanilla/server.jar
-perfis/vanilla/cache/
-
-# IDEs
 .idea/
+.vscode/
 
-# Arquivos Gerados pelo Servidor Minecraft
-perfis/vanilla/logs/
-perfis/vanilla/libraries/
-perfis/vanilla/versions/
-perfis/vanilla/config/
-perfis/vanilla/*.json
-perfis/vanilla/*.yml
-perfis/vanilla/.console_history
-
-# Banco de Dados Local
+# ==========================================
+# 4. BANCO DE DADOS LOCAL
+# ==========================================
 *.db
+*.sqlite3
 
-# Arquivos Pesados do Minecraft (Para TODOS os perfis)
-perfis/vanilla/world/
+# ==========================================
+# 5. CLIENTE MINECRAFT (Evitar upar gigabytes)
+# ==========================================
+pear_minecraft_client/
+
+# ==========================================
+# 6. SERVIDORES MINECRAFT (Todos os perfis)
+# ==========================================
+# Mundos e Arquivos Pesados
+perfis/*/world/
+perfis/*/world_nether/
+perfis/*/world_the_end/
 perfis/*/server.jar
 perfis/*/cache/
 
-# Ignorar pastas temporárias de plugins
+# Arquivos Gerados Automaticamente pelo Java/Paper
+perfis/*/logs/
+perfis/*/libraries/
+perfis/*/versions/
+perfis/*/*.json
+perfis/*/*.yml
+perfis/*/.console_history
 perfis/*/plugins/*/tmp/
