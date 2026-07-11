@@ -1,6 +1,7 @@
 """
 NOMAD SERVER - API DE ROTEAMENTO V0.2
 Integração automática de rede com Oracle Cloud via SSH.
+Centralizada: Evita Race Conditions no Velocity
 """
 
 from fastapi import FastAPI, HTTPException, Security, Depends
@@ -121,30 +122,58 @@ async def register_host(req: HostRegisterReq, db: aiosqlite.Connection = Depends
 async def update_tunnel(req: TunnelUpdateReq, db: aiosqlite.Connection = Depends(get_db), _: str = Depends(verify_api_key)):
     full_address = f"{req.public_ip}:{req.tunnel_port}"
     try:
-        # 1. Atualiza Banco Local
+        # 1. Recupera o nome do jogador para o current_host.txt (Compatibilidade com Launcher)
+        player_name = req.player_uuid # Fallback
+        async with db.execute("SELECT player_name FROM hosts WHERE player_uuid = ?", (req.player_uuid,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                player_name = row[0]
+
+        # 2. Atualiza Banco Local
         await db.execute("""UPDATE hosts SET public_ip = ?, tunnel_port = ?, full_address = ?, status = 'active', last_heartbeat = datetime('now') WHERE player_uuid = ?""",
                          (req.public_ip, req.tunnel_port, full_address, req.player_uuid))
         await db.execute("UPDATE world_state SET current_host_uuid = ?", (req.player_uuid,))
         await log_audit(db, "TUNNEL_UPDATE", req.player_uuid, f"endpoint={full_address}")
         await db.commit()
 
-        # 2. Automação SSH para Oracle (O pulo do gato)
-        logger.info(f"Sincronizando novo IP ({full_address}) com a Nuvem Oracle...")
+        # 3. Automação SSH Robusta para Oracle (O pulo do gato - Correção Race Condition)
+        logger.info(f"Sincronizando configurações na Oracle para: {full_address}")
 
+        # Utilizando SED para edição segura de texto via bash remoto
         remote_command = f"""
-        sed -i 's/^nomad-backend = .*/nomad-backend = "{full_address}"/' ~/velocity/velocity.toml
-        pkill -f velocity.jar
-        cd ~/velocity && nohup java -jar velocity.jar > velocity.log 2>&1 &
+        cd ~/velocity
+        
+        # Injeta IP e configurações vitais no TOML
+        sed -i -E 's/^(nomad-backend\\s*=\\s*).*$/\\1"{full_address}"/' velocity.toml
+        sed -i -E 's/^(online-mode\\s*=\\s*).*$/\\1false/' velocity.toml
+        sed -i -E 's/^(force-key-authentication\\s*=\\s*).*$/\\1false/' velocity.toml
+        sed -i -E 's/^(player-info-forwarding-mode\\s*=\\s*).*$/\\1"modern"/' velocity.toml
+        
+        # Atualiza quem é o Host atual para o painel
+        echo "{player_name}|{full_address}" > current_host.txt
+        
+        # Reinicia o Velocity de forma limpa (desconectando dos processos filhos)
+        pkill -9 -f velocity.jar || true
+        rm -f velocity.log
+        sleep 1
+        nohup java -jar velocity.jar > velocity.log 2>&1 </dev/null &
         """
 
-        subprocess.Popen([
-            "ssh", "-i", SSH_KEY_PATH,
-            "-o", "StrictHostKeyChecking=no",
-            f"ubuntu@{ORACLE_IP}", remote_command
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Executa sincronamente aguardando conclusão/erro (timeout de 15s)
+        try:
+            subprocess.run([
+                "ssh", "-i", SSH_KEY_PATH,
+                "-o", "StrictHostKeyChecking=no",
+                f"ubuntu@{ORACLE_IP}", remote_command
+            ], check=True, timeout=15, capture_output=True)
 
-        logger.info("Sincronização com Oracle disparada com sucesso!")
-        return {"status": "updated", "server_endpoint": full_address, "cloud_sync": True}
+            logger.info("Sincronização com Oracle concluída e Proxy reiniciado.")
+            return {"status": "updated", "server_endpoint": full_address, "cloud_sync": True}
+
+        except subprocess.CalledProcessError as ssh_err:
+            logger.error(f"Falha na comunicação SSH com a Nuvem: {ssh_err.stderr.decode('utf-8')}")
+            raise Exception("Falha de comunicação SSH com a Oracle.")
+
     except Exception as e:
         logger.error(f"Erro no túnel: {e}")
         raise HTTPException(status_code=500, detail=str(e))

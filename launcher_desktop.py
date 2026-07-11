@@ -19,7 +19,7 @@ import re
 import zipfile
 import base64
 import minecraft_launcher_lib
-from pyngrok import ngrok
+from pyngrok import ngrok, conf
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QTextEdit, QMessageBox, QTabWidget, QFileDialog, QDialog,
@@ -158,7 +158,6 @@ class CustomTitleBar(QWidget):
         super().__init__(parent)
         self.parent = parent
         self.setFixedHeight(45)
-        # Background transparente para não sobrepor o arredondamento e criar "quadrados pretos"
         self.setStyleSheet("background-color: transparent;")
 
         layout = QHBoxLayout(self)
@@ -202,7 +201,6 @@ class CustomTitleBar(QWidget):
 
     def mouseReleaseEvent(self, event):
         self.drag_start_pos = None
-
 
 # ============================================================================
 # API MINESKIN E ORACLE MANAGER
@@ -408,7 +406,6 @@ class CheckOracleThread(QThread):
             oracle.connect()
             host_user, ip_port = oracle.get_host_state()
 
-            # Anti-Zumbi
             if host_user and ip_port and "Iniciando" not in ip_port:
                 try:
                     ip, port = ip_port.split(":")
@@ -537,7 +534,6 @@ class SmartMonitorThread(QThread):
     def __init__(self):
         super().__init__()
         self.is_running = True
-        # REMOVIDO vgc PARA NÃO DESLIGAR O SERVIDOR SÓ POR TER O VANGUARD ABERTO
         self.heavy_games = ["valorant", "cs2", "csgo", "leagueoflegends", "gta5", "r5apex", "fortniteclient"]
     def run(self):
         while self.is_running:
@@ -604,7 +600,7 @@ class MicrosoftLoginDialog(QDialog):
         self.worker.error_signal.connect(self.on_error)
         self.worker.start()
 
-    def accept(self): pass # Previne o fechamento por Enter
+    def accept(self): pass
 
     def force_accept(self): super().accept()
 
@@ -695,9 +691,7 @@ class LoginWindow(QDialog):
         main_layout.addWidget(content)
         self.check_auto_login()
 
-    def accept(self):
-        # Proteção Absoluta contra a tecla ENTER fechar a tela sem logar!
-        pass
+    def accept(self): pass
 
     def force_accept(self):
         super().accept()
@@ -833,7 +827,7 @@ class RegisterWindow(QDialog):
 
         main_layout.addWidget(content)
 
-    def accept(self): pass # Previne Enter fechar
+    def accept(self): pass
     def force_accept(self): super().accept()
 
     def do_register(self):
@@ -899,6 +893,7 @@ class MinecraftClientThread(QThread):
         except Exception as e:
             self.log_signal.emit(f"Erro ao abrir o Minecraft: {e}")
 
+
 class ServerRunnerThread(QThread):
     log_signal = Signal(str)
     status_signal = Signal(bool)
@@ -919,14 +914,21 @@ class ServerRunnerThread(QThread):
                 out = subprocess.check_output("wmic computersystem get totalphysicalmemory", shell=True).decode()
                 res = re.findall(r'\d+', out)
                 gb = int(res[0]) / (1024 ** 3) if res else 8.0
-            else: gb = 8.0
-        except: gb = 8.0
+            else:
+                gb = 8.0
+        except:
+            gb = 8.0
         self.log_signal.emit(f"Hardware: {gb:.1f} GB de RAM total.")
-        if gb <= 5.0: return "2G"
-        elif gb <= 9.0: return "3G"
-        elif gb <= 13.0: return "4G"
-        elif gb <= 17.0: return "6G"
-        else: return "8G"
+        if gb <= 5.0:
+            return "2G"
+        elif gb <= 9.0:
+            return "3G"
+        elif gb <= 13.0:
+            return "4G"
+        elif gb <= 17.0:
+            return "6G"
+        else:
+            return "8G"
 
     def inject_skin_command(self, player_name):
         if self.skin_url and self.skin_url != 'NONE' and self.server_process:
@@ -945,7 +947,8 @@ class ServerRunnerThread(QThread):
                 os.makedirs(local_skins_dir, exist_ok=True)
                 for fname, content in skin_files.items():
                     with open(os.path.join(local_skins_dir, fname), "w") as f: f.write(content)
-        except: pass
+        except:
+            pass
 
     def is_local_port_in_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -964,7 +967,8 @@ class ServerRunnerThread(QThread):
     def run(self):
         jar_path = os.path.join(self.profile_dir, "server.jar")
         if not os.path.exists(jar_path) or self.is_local_port_in_use(25565):
-            self.status_signal.emit(False); return
+            self.status_signal.emit(False);
+            return
 
         server_props = os.path.join(self.profile_dir, "server.properties")
         if os.path.exists(server_props):
@@ -983,10 +987,33 @@ class ServerRunnerThread(QThread):
                 with zipfile.ZipFile(local_zip, 'r') as zip_ref: zip_ref.extractall(self.profile_dir)
                 os.remove(local_zip)
             sync_oracle.close()
-        except: pass
+        except:
+            pass
 
+        # Otimizações de RAM e Aikar's Flags Injetadas Aqui
         ram = self.calculate_intelligent_ram()
-        self.server_process = subprocess.Popen(["java", f"-Xmx{ram}", f"-Xms{ram}", "-Djline.terminal=jline.UnsupportedTerminal", "-jar", "server.jar", "nogui", "--nojline"], cwd=self.profile_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+        aikar_flags = [
+            "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
+            "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
+            "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M",
+            "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
+            "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
+            "-XX:G1RSetUpdatingPauseTimePercent=5", "-XX:SurvivorRatio=32", "-XX:+PerfDisableSharedMem",
+            "-XX:MaxTenuringThreshold=1", "-Dusing.aikars.flags=https://mcflags.emc.gs", "-Daikars.new.flags=true"
+        ]
+
+        comando_java = ["java", f"-Xmx{ram}", f"-Xms{ram}"] + aikar_flags + [
+            "-Djline.terminal=jline.UnsupportedTerminal", "-jar", "server.jar", "nogui", "--nojline"]
+
+        self.server_process = subprocess.Popen(
+            comando_java,
+            cwd=self.profile_dir,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
 
         server_ready_event = threading.Event()
 
@@ -1001,21 +1028,39 @@ class ServerRunnerThread(QThread):
                         ready_event.set()
             process.stdout.close()
 
-        threading.Thread(target=read_paper_logs, args=(self.server_process, self.log_signal, self.skin_injection_signal, server_ready_event), daemon=True).start()
+        threading.Thread(target=read_paper_logs,
+                         args=(self.server_process, self.log_signal, self.skin_injection_signal, server_ready_event),
+                         daemon=True).start()
 
         if not self.wait_for_local_port("127.0.0.1", 25565, timeout=120): self.status_signal.emit(False); return
 
         try:
+            # Ngrok Forçado para a Região América do Sul (sa)
             ngrok.set_auth_token(os.getenv("NGROK_TOKEN"))
-            self.tunnel = ngrok.connect(25565, "tcp")
+            config_sa = conf.PyngrokConfig(region="sa")
+            self.tunnel = ngrok.connect(25565, "tcp", pyngrok_config=config_sa)
             public_ip, tunnel_port = self.tunnel.public_url.replace("tcp://", "").split(":")
 
             self.oracle = OracleManager(self.log_signal)
             self.oracle.connect()
-            self.oracle.set_host_state(True, self.player_name, f"{public_ip}:{tunnel_port}")
             self.oracle.sync_forwarding_secret(self.profile_dir)
-            if not self.oracle.prepare_and_update(public_ip, tunnel_port): raise Exception("Falha TOML")
-            if not self.oracle.restart_process(): raise Exception("Falha Boot Velocity")
+
+            self.log_signal.emit("Avisando a API da Nuvem sobre o novo túnel...")
+            api_payload = {
+                "player_uuid": self.player_name,
+                "public_ip": public_ip,
+                "tunnel_port": tunnel_port
+            }
+            api_resp = requests.post(
+                f"http://{ORACLE_IP}:5000/api/host/update-tunnel",
+                json=api_payload,
+                headers={"X-API-Key": "minecraftpear2026"},
+                timeout=20
+            )
+
+            if api_resp.status_code != 200:
+                raise Exception(f"Erro na API ({api_resp.status_code}): {api_resp.text}")
+
             if not self.oracle.wait_for_velocity(timeout=60): raise Exception("Falha Logs Velocity")
 
             self.log_signal.emit("Aguardando o mapa carregar até 100%...")
@@ -1045,7 +1090,8 @@ class ServerRunnerThread(QThread):
                 self.server_process.stdin.write("stop\n")
                 self.server_process.stdin.flush()
                 self.server_process.wait(timeout=30)
-            except: self.server_process.kill()
+            except:
+                self.server_process.kill()
 
         try:
             local_zip = os.path.join(self.profile_dir, "cloud_save.zip")
@@ -1054,7 +1100,8 @@ class ServerRunnerThread(QThread):
                     folder_path = os.path.join(self.profile_dir, folder)
                     if os.path.exists(folder_path):
                         for root, dirs, files in os.walk(folder_path):
-                            for file in files: zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), self.profile_dir))
+                            for file in files: zipf.write(os.path.join(root, file),
+                                                          os.path.relpath(os.path.join(root, file), self.profile_dir))
 
             sync_oracle = OracleManager(self.log_signal)
             sync_oracle.connect()
@@ -1062,16 +1109,20 @@ class ServerRunnerThread(QThread):
             sync_oracle.set_host_state(False)
             sync_oracle.close()
             self.log_signal.emit("Backup P2P concluído.")
-        except: pass
+        except:
+            pass
 
         if self.oracle:
-            try: self.oracle.close()
-            except: pass
+            try:
+                self.oracle.close()
+            except:
+                pass
         if self.tunnel: ngrok.disconnect(self.tunnel.public_url)
         ngrok.kill()
         self.status_signal.emit(False)
 
-    def stop(self): self.is_running = False
+    def stop(self):
+        self.is_running = False
 
 # ============================================================================
 # MAIN LAUNCHER UI
@@ -1216,7 +1267,7 @@ class PearLauncher(QMainWindow):
     def build_config_tab(self):
         layout = QVBoxLayout(self.tab_config)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20) # Mais espaço para não ficar espremido
+        layout.setSpacing(20)
 
         layout.addWidget(QLabel("Token do Ngrok (Authtoken):"))
         self.config_ngrok = QLineEdit()
@@ -1230,13 +1281,11 @@ class PearLauncher(QMainWindow):
         self.config_key.setText(os.path.abspath("ssh-key-2026-07-02.key"))
         self.btn_browse_config = QPushButton("Procurar")
         self.btn_browse_config.setObjectName("btn_secondary")
-        # Ajuste específico para o botão procurar não ficar gigante
         self.btn_browse_config.setFixedSize(100, 48)
         self.btn_browse_config.clicked.connect(lambda: self.config_key.setText(QFileDialog.getOpenFileName(self, "Chave SSH", "", "Key (*.key);;All (*)")[0] or self.config_key.text()))
         kl.addWidget(self.config_key); kl.addWidget(self.btn_browse_config)
         layout.addLayout(kl)
 
-        # Switches Customizados
         self.config_allow_host = ToggleSwitch()
         self.config_allow_host.setChecked(self.allow_hosting)
         row1 = QHBoxLayout(); row1.addWidget(self.config_allow_host); row1.addWidget(QLabel("Permitir que meu PC seja usado como Servidor")); row1.addStretch()
@@ -1402,6 +1451,14 @@ class PearLauncher(QMainWindow):
         else: self.btn_upload.setText("Tentar Novamente")
 
     def log(self, msg):
+        # Proteção de RAM: Limita o histórico do console a 1000 linhas
+        if self.console.document().blockCount() > 1000:
+            cursor = self.console.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.select(cursor.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar()
+
         self.console.append(msg)
         self.console.verticalScrollBar().setValue(self.console.verticalScrollBar().maximum())
 
