@@ -1,0 +1,9 @@
+messages:
+  command:
+    player-only: '&cThis command can only be used by players.'
+    no-permission: '&cYou don''t have permission to use this command.'
+  toggle:
+    enabled: '&aVeinMiner has been enabled.'
+    disabled: '&cVeinMiner has been disabled.'
+  reload:
+    success: '&aVeinMiner configuration has been reloaded.'

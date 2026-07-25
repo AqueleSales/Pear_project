@@ -1,0 +1,306 @@
+# VeinMiner Configuration
+
+settings:
+  # Maximum number of blocks that can be mined at once (if level system is disabled)
+  max-blocks: 64
+  
+  # Durability settings
+  use-durability-multiplier: true
+  durability-multiplier: 1.0
+  
+  # Hunger settings
+  use-hunger-multiplier: true
+  hunger-multiplier: 0.1
+  
+  # Debug mode - enables additional logging
+  debug: true
+  
+  # Auto-save interval in minutes (0 to disable)
+  auto-save-interval: 15
+  
+  # Whether to check for updates
+  check-for-updates: true
+  
+  # Whether to save player data immediately on quit (true = Data protection, false = only Batch/Auto-Save)
+  save-on-quit: true
+  
+  # Hybrid mode: true = diagonal + direct connections, false = only direct connections
+  hybrid-mode: false
+  
+  # Blocks that should only use direct mode (even when hybrid is enabled)
+  hybrid-blacklist:
+  - OAK_LOG
+  - BIRCH_LOG
+  - SPRUCE_LOG
+  - JUNGLE_LOG
+  - ACACIA_LOG
+  - DARK_OAK_LOG
+  - MANGROVE_LOG
+  - CHERRY_LOG
+  - CRIMSON_STEM
+  - WARPED_STEM
+  - LEAVES
+  - OAK_LEAVES
+  - BIRCH_LEAVES
+  - SPRUCE_LEAVES
+  - JUNGLE_LEAVES
+  - ACACIA_LEAVES
+  - DARK_OAK_LEAVES
+  - MANGROVE_LEAVES
+  - CHERRY_LEAVES
+  - AZALEA_LEAVES
+  - FLOWERING_AZALEA_LEAVES
+
+# WorldGuard integration
+worldguard:
+  # Whether to respect WorldGuard regions
+  enabled: true
+  # Whether to show debug messages for WorldGuard checks
+  debug: false
+
+# Skill system settings
+skill-system:
+  # Whether to enable the skill system
+  enabled: true
+  # Maximum level for each skill
+  max-skill-level: 5
+
+# Reset settings
+reset:
+  # Whether resetting skills costs money
+  cost-enabled: true
+  # Cost to reset skills
+  cost: 1000.0
+  # Command to execute to take money from player
+  command: eco take %player% %amount%
+
+# Achievement system settings
+achievement-system:
+  # Whether to enable the achievement system
+  enabled: true
+  
+  # Achievement definitions
+  achievements:
+    # Mining specific blocks
+    mine_coal:
+      name: Coal Collector
+      description: Mine 100 coal ore blocks
+      type: BLOCK_MINE
+      block: COAL_ORE,DEEPSLATE_COAL_ORE
+      amount: 100
+      rewards:
+        money: 100
+        items:
+        - COAL:16
+    
+    mine_iron:
+      name: Iron Miner
+      description: Mine 100 iron ore blocks
+      type: BLOCK_MINE
+      block: IRON_ORE,DEEPSLATE_IRON_ORE
+      amount: 100
+      rewards:
+        money: 200
+        items:
+        - IRON_INGOT:8
+    
+    mine_gold:
+      name: Gold Digger
+      description: Mine 50 gold ore blocks
+      type: BLOCK_MINE
+      block: GOLD_ORE,DEEPSLATE_GOLD_ORE
+      amount: 50
+      rewards:
+        money: 300
+        items:
+        - GOLD_INGOT:4
+    
+    mine_diamond:
+      name: Diamond Hunter
+      description: Mine 25 diamond ore blocks
+      type: BLOCK_MINE
+      block: DIAMOND_ORE,DEEPSLATE_DIAMOND_ORE
+      amount: 25
+      rewards:
+        money: 500
+        items:
+        - DIAMOND:2
+    
+    mine_ancient_debris:
+      name: Netherite Prospector
+      description: Mine 10 ancient debris
+      type: BLOCK_MINE
+      block: ANCIENT_DEBRIS
+      amount: 10
+      rewards:
+        money: 1000
+        items:
+        - NETHERITE_SCRAP:1
+    
+    # Total blocks mined
+    total_blocks:
+      name: Mining Enthusiast
+      description: Mine 1,000 blocks with VeinMiner
+      type: TOTAL_BLOCKS
+      amount: 1000
+      rewards:
+        money: 250
+        items:
+        - DIAMOND_PICKAXE:1
+    
+    total_blocks_advanced:
+      name: Mining Expert
+      description: Mine 10,000 blocks with VeinMiner
+      type: TOTAL_BLOCKS
+      amount: 10000
+      rewards:
+        money: 1000
+        items:
+        - NETHERITE_PICKAXE:1
+    
+    # Level achievements
+    reach_level_5:
+      name: Apprentice Miner
+      description: Reach level 5 in VeinMiner
+      type: LEVEL
+      amount: 5
+      rewards:
+        money: 500
+        items:
+        - EXPERIENCE_BOTTLE:16
+    
+    reach_level_10:
+      name: Master Miner
+      description: Reach level 10 in VeinMiner
+      type: LEVEL
+      amount: 10
+      rewards:
+        money: 2000
+        items:
+        - ENCHANTED_GOLDEN_APPLE:1
+        - DIAMOND:8
+    
+    # Skill achievements
+    skill_master:
+      name: Skill Master
+      description: Max out all skills
+      type: SKILL_MASTER
+      amount: 1
+      rewards:
+        money: 5000
+        items:
+        - NETHERITE_PICKAXE:1
+        - NETHERITE_AXE:1
+        - NETHERITE_SHOVEL:1
+  
+  # Custom icons for achievements
+  icons:
+    mine_coal: COAL_ORE
+    mine_iron: IRON_ORE
+    mine_gold: GOLD_ORE
+    mine_diamond: DIAMOND_ORE
+    mine_ancient_debris: ANCIENT_DEBRIS
+    total_blocks: STONE
+    total_blocks_advanced: NETHERITE_PICKAXE
+    reach_level_5: EXPERIENCE_BOTTLE
+    reach_level_10: ENCHANTED_GOLDEN_APPLE
+    skill_master: ENCHANTED_BOOK
+  
+  # Economy settings for rewards
+  economy:
+    enabled: true
+    give-command: eco give %player% %amount%
+  
+  # Notification settings
+  notifications:
+    chat: true
+    sound:
+      enabled: true
+      type: ENTITY_PLAYER_LEVELUP
+      volume: 1.0
+      pitch: 1.0
+    title:
+      enabled: true
+      text: '&6Achievement Unlocked!'
+      subtitle: '&e%achievement%'
+      fade-in: 10
+      stay: 70
+      fade-out: 20
+  
+  # Discord webhook settings
+  discord:
+    enabled: false
+    webhook-url: ''
+    message: '%player% has earned the achievement %achievement%!'
+
+# List of blocks that can be mined with VeinMiner
+allowed-blocks:
+- COAL_ORE
+- DEEPSLATE_COAL_ORE
+- IRON_ORE
+- DEEPSLATE_IRON_ORE
+- COPPER_ORE
+- DEEPSLATE_COPPER_ORE
+- GOLD_ORE
+- DEEPSLATE_GOLD_ORE
+- REDSTONE_ORE
+- DEEPSLATE_REDSTONE_ORE
+- DIAMOND_ORE
+- DEEPSLATE_DIAMOND_ORE
+- LAPIS_ORE
+- DEEPSLATE_LAPIS_ORE
+- EMERALD_ORE
+- DEEPSLATE_EMERALD_ORE
+- NETHER_GOLD_ORE
+- NETHER_QUARTZ_ORE
+- ANCIENT_DEBRIS
+- OAK_LOG
+- BIRCH_LOG
+- SPRUCE_LOG
+- JUNGLE_LOG
+- ACACIA_LOG
+- DARK_OAK_LOG
+- MANGROVE_LOG
+- CHERRY_LOG
+- CRIMSON_STEM
+- WARPED_STEM
+
+# Database settings
+database:
+  # Name of the database
+  name: veinminer
+  # Whether to use MySQL for storing player data
+  use-mysql: false
+  host: localhost
+  port: 3306
+  username: root
+  password: test
+  table-prefix: vm_
+  # Reduce database connection error messages in console
+  reduce-logging: true
+  # Connection pool settings
+  pool:
+    # Maximum number of connections in the pool
+    max-pool-size: 10
+    # Minimum number of idle connections
+    min-idle: 2
+    # Maximum lifetime of a connection in milliseconds
+    max-lifetime: 600000
+    # Connection timeout in milliseconds
+    connection-timeout: 30000
+    # How long to wait before timing out idle connections
+    idle-timeout: 300000
+    # Time to wait for a connection from the pool
+    wait-timeout: 10000
+
+# GUI settings
+gui:
+  # Whether to show the About section in the main menu
+  show-about: true
+  # Whether to show the Top Players section in the main menu
+  show-top-players: true
+  # How often to refresh the top players data (in minutes)
+  top-players-refresh-interval: 5
+permissions:
+  require-permission: false
+  require-tool-permission: false

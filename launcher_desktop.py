@@ -1,6 +1,6 @@
 """
-PEAR PROJECT - SUPER LAUNCHER V5.3 (PySide6)
-Nível Produção: Frameless Premium UI, Switches Nativos, Microsoft OAuth
+PEAR PROJECT - SUPER LAUNCHER V6.0 (PySide6)
+Nível Produção: Auto-Updater, FRP Tunneling, Fabric & Mods Injector, Auto-Kill Ghosts, Addons Tab, SFTP Modpack, Auto-Host Deployment
 """
 import os
 import json
@@ -18,55 +18,51 @@ import paramiko
 import re
 import zipfile
 import base64
+import shutil
+import urllib.request
 import minecraft_launcher_lib
-from pyngrok import ngrok, conf
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QTextEdit, QMessageBox, QTabWidget, QFileDialog, QDialog,
-                               QSystemTrayIcon, QMenu, QCheckBox)
+                               QSystemTrayIcon, QMenu, QCheckBox, QSlider, QProgressBar,
+                               QScrollArea, QFrame, QGridLayout)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 from PySide6.QtGui import QFont, QPixmap, QIcon, QAction, QPainter, QColor, QPen
+
+# Muta TODOS os logs repetitivos do paramiko (Silenciador Total)
+logging.getLogger("paramiko").setLevel(logging.CRITICAL)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Configurações da Oracle e Proxy
+CURRENT_VERSION = "6.0.0"
+UPDATE_JSON_URL = "https://gist.githubusercontent.com/AqueleSales/41ebf320b53b9f35396cebfaae8b5613/raw/gistfile1.txt"
+
 ORACLE_IP = "163.176.54.0"
 SSH_USER = "ubuntu"
 SSH_KEY_PATH = os.path.abspath("ssh-key-2026-07-02.key")
 PROXY_SERVER_NAME = "nomad-backend"
 
-# ============================================================================
-# DESIGN: ÍCONE DA PERA, SWITCHES E STYLESHEET
-# ============================================================================
 def create_pear_icon():
-    """Gera um ícone de Pera desenhado matematicamente."""
     pixmap = QPixmap(64, 64)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
 
-    # Cabinho da Pera (Marrom)
     painter.setPen(QPen(QColor("#78350f"), 4, Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(32, 16, 38, 8)
-
-    # Folhinha (Verde Escuro)
     painter.setBrush(QColor("#22c55e"))
     painter.setPen(Qt.NoPen)
     painter.drawEllipse(36, 10, 14, 8)
-
-    # Corpo da Pera (Verde)
     painter.setBrush(QColor("#84cc16"))
     painter.setPen(Qt.NoPen)
-    painter.drawEllipse(22, 20, 20, 20) # Topo
-    painter.drawEllipse(14, 30, 36, 28) # Base
-
+    painter.drawEllipse(22, 20, 20, 20)
+    painter.drawEllipse(14, 30, 36, 28)
     painter.end()
     return QIcon(pixmap)
 
 class ToggleSwitch(QWidget):
-    """Interruptor customizado idêntico ao do iOS / Discord"""
     toggled = Signal(bool)
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -74,9 +70,7 @@ class ToggleSwitch(QWidget):
         self.setCursor(Qt.PointingHandCursor)
         self._checked = False
 
-    def isChecked(self):
-        return self._checked
-
+    def isChecked(self): return self._checked
     def setChecked(self, val):
         self._checked = val
         self.update()
@@ -90,69 +84,53 @@ class ToggleSwitch(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-
-        # Cores de Fundo
         bg_color = QColor("#3b82f6") if self._checked else QColor("#334155")
         thumb_pos = self.width() - 22 if self._checked else 2
-
-        # Fundo da Pílula
         painter.setBrush(bg_color)
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(0, 0, self.width(), self.height(), 12, 12)
-
-        # Botãozinho Branco
         painter.setBrush(QColor("#ffffff"))
         painter.drawEllipse(thumb_pos, 2, 20, 20)
         painter.end()
 
 STYLESHEET = """
-    /* Main Window: Controla o fundo geral e os cantos arredondados perfeitos */
     QWidget#main_window { background-color: #0B0F19; border: 1px solid #1e293b; border-radius: 12px; }
     QDialog, QMainWindow { background-color: transparent; color: #f8fafc; font-family: 'Segoe UI', Arial; }
-    
     QLabel { font-size: 14px; font-weight: bold; color: #cbd5e1; }
-    
-    /* Inputs agora têm altura mínima e margens confortáveis (nada espremido) */
     QLineEdit { background-color: #111827; border: 2px solid #1e293b; border-radius: 8px; padding: 8px; color: #f8fafc; font-size: 14px; min-height: 20px; }
     QLineEdit:focus { border: 2px solid #3b82f6; }
-    
     QPushButton { border-radius: 8px; padding: 5px; font-weight: bold; font-size: 14px; border: none; color: white; min-height: 25px; }
-    QPushButton:pressed { padding-top: 10px; padding-bottom: 6px; } /* Animação tátil corrigida para não sumir o texto */
+    QPushButton:pressed { padding-top: 10px; padding-bottom: 6px; }
     QPushButton:disabled { background-color: #1e293b; color: #475569; }
-    
     QPushButton#btn_primary { background-color: #3b82f6; color: white; }
     QPushButton#btn_primary:hover { background-color: #2563eb; }
-    
     QPushButton#btn_secondary { background-color: #10b981; color: white; }
     QPushButton#btn_secondary:hover { background-color: #059669; }
-    
     QPushButton#btn_danger { background-color: #ef4444; color: white; }
     QPushButton#btn_danger:hover { background-color: #dc2626; }
-    
     QPushButton#btn_warning { background-color: #f97316; color: white; }
     QPushButton#btn_warning:hover { background-color: #ea580c; }
-    
     QPushButton#btn_link { background-color: transparent; color: #93c5fd; padding: 0; font-weight: normal; min-height: 20px; }
     QPushButton#btn_link:hover { color: #60a5fa; text-decoration: underline; }
-    
-    /* Abas Estilo VS Code / Navegador */
     QTabWidget::pane { border: none; background: transparent; }
     QTabBar::tab { background: transparent; color: #64748b; padding: 12px 24px; font-weight: bold; border-bottom: 3px solid transparent; }
     QTabBar::tab:selected { color: #3b82f6; border-bottom: 3px solid #3b82f6; }
     QTabBar::tab:hover:!selected { color: #cbd5e1; background: #1e293b; border-radius: 8px; }
-    
     QTextEdit { background-color: #06090F; border: 1px solid #1e293b; border-radius: 8px; color: #10b981; font-family: Consolas; padding: 12px; font-size: 13px; }
-    
-    /* Checkbox de Lembrar de Mim (Quadrado Moderno Gordinho) */
     QCheckBox { font-weight: bold; color: #cbd5e1; spacing: 12px; }
     QCheckBox::indicator { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #334155; background-color: #111827; }
     QCheckBox::indicator:hover { border: 2px solid #3b82f6; }
     QCheckBox::indicator:checked { background-color: #3b82f6; border: 2px solid #3b82f6; }
+    QProgressBar { border: 2px solid #1e293b; border-radius: 8px; text-align: center; color: white; font-weight: bold; background-color: #111827; }
+    QProgressBar::chunk { background-color: #10b981; border-radius: 6px; }
+    QSlider::groove:horizontal { border: 1px solid #1e293b; height: 8px; background: #111827; margin: 2px 0; border-radius: 4px; }
+    QSlider::handle:horizontal { background: #3b82f6; border: 1px solid #2563eb; width: 18px; margin: -5px 0; border-radius: 9px; }
+    QFrame#addon_card { background-color: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 10px; }
+    QLabel#addon_title { color: #3b82f6; font-size: 15px; font-weight: bold; }
+    QLabel#addon_desc { color: #94a3b8; font-size: 12px; font-weight: normal; }
+    QLabel#addon_status { color: #10b981; font-size: 11px; font-weight: bold; padding: 3px 6px; border: 1px solid #10b981; border-radius: 4px; }
 """
 
-# ============================================================================
-# COMPONENTE: BARRA DE TÍTULO CUSTOMIZADA (FRAMELESS)
-# ============================================================================
 class CustomTitleBar(QWidget):
     def __init__(self, parent, title_text):
         super().__init__(parent)
@@ -162,10 +140,7 @@ class CustomTitleBar(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(15, 0, 15, 0)
-
-        icon_label = QLabel()
-        icon_label.setPixmap(create_pear_icon().pixmap(24, 24))
-        layout.addWidget(icon_label)
+        icon_label = QLabel(); icon_label.setPixmap(create_pear_icon().pixmap(24, 24)); layout.addWidget(icon_label)
 
         title = QLabel(title_text)
         title.setStyleSheet("color: #cbd5e1; font-weight: bold; font-size: 14px; letter-spacing: 1px;")
@@ -183,28 +158,18 @@ class CustomTitleBar(QWidget):
         btn_close.setStyleSheet("QPushButton { background: transparent; color: #cbd5e1; padding: 0; font-weight: bold; font-size: 16px; border-radius: 8px; } QPushButton:hover { background: #ef4444; color: white; }")
         btn_close.clicked.connect(self.close_parent)
         layout.addWidget(btn_close)
-
         self.drag_start_pos = None
 
-    def close_parent(self):
-        self.parent.close()
-
+    def close_parent(self): self.parent.close()
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.drag_start_pos = event.globalPosition().toPoint()
-
+        if event.button() == Qt.LeftButton: self.drag_start_pos = event.globalPosition().toPoint()
     def mouseMoveEvent(self, event):
         if self.drag_start_pos is not None:
             delta = event.globalPosition().toPoint() - self.drag_start_pos
             self.parent.move(self.parent.x() + delta.x(), self.parent.y() + delta.y())
             self.drag_start_pos = event.globalPosition().toPoint()
+    def mouseReleaseEvent(self, event): self.drag_start_pos = None
 
-    def mouseReleaseEvent(self, event):
-        self.drag_start_pos = None
-
-# ============================================================================
-# API MINESKIN E ORACLE MANAGER
-# ============================================================================
 MINESKIN_API = "https://api.mineskin.org/v2/generate"
 
 def generate_mineskin_texture(image_url, variant="classic"):
@@ -229,6 +194,26 @@ class OracleManager:
     def connect(self):
         self.client.connect(hostname=ORACLE_IP, username=SSH_USER, port=22, key_filename=SSH_KEY_PATH, timeout=15)
         self.client.get_transport().set_keepalive(30)
+
+    def download_mods_sftp(self, local_mods_dir):
+        try:
+            sftp = self.client.open_sftp()
+            remote_dir = '/home/ubuntu/velocity/modpack'
+            try: files = sftp.listdir(remote_dir)
+            except IOError: return False
+
+            for file in files:
+                if file.endswith('.jar'):
+                    remote_path = f"{remote_dir}/{file}"
+                    local_path = os.path.join(local_mods_dir, file)
+                    if not os.path.exists(local_path):
+                        self.emit_log(f"Baixando da Nuvem via SFTP: {file}...")
+                        sftp.get(remote_path, local_path)
+            sftp.close()
+            return True
+        except Exception as e:
+            self.emit_log(f"Aviso: Não foi possível baixar da nuvem via SFTP: {e}")
+            return False
 
     def execute_command_with_status(self, command):
         _, stdout, stderr = self.client.exec_command(command)
@@ -326,9 +311,12 @@ print(json.dumps(result))
             self.execute_command_with_status(f"echo {shlex.quote(secret)} > ~/velocity/forwarding.secret")
         except Exception: pass
 
-    def prepare_and_update(self, ip, port):
+    def prepare_and_update(self):
         _, _, status = self.execute_command_with_status("test -f ~/velocity/velocity.toml")
         if status != 0: return False
+
+        ip_port = "127.0.0.1:25577"
+
         python_injector = """
 import re, sys
 try:
@@ -345,7 +333,7 @@ try:
 except Exception as e:
     print(f"ERRO_PYTHON: {e}"); sys.exit(2)
 """
-        cmd_update = f"cd ~/velocity && python3 -c {shlex.quote(python_injector)} {shlex.quote(PROXY_SERVER_NAME)} {shlex.quote(f'{ip}:{port}')}"
+        cmd_update = f"cd ~/velocity && python3 -c {shlex.quote(python_injector)} {shlex.quote(PROXY_SERVER_NAME)} {shlex.quote(ip_port)}"
         stdout, _, status = self.execute_command_with_status(cmd_update)
         return status == 0 and stdout.splitlines()[0] == 'SUCESSO'
 
@@ -378,9 +366,9 @@ except Exception as e:
             time.sleep(2)
         return False
 
-    def set_host_state(self, is_hosting, username="", ip_port=""):
+    def set_host_state(self, is_hosting, username="", num_players=0):
         if is_hosting:
-            self.execute_command_with_status(f"echo {shlex.quote(username + '|' + ip_port)} > ~/velocity/current_host.txt")
+            self.execute_command_with_status(f"echo {shlex.quote(username + '|' + str(num_players))} > ~/velocity/current_host.txt")
         else:
             self.execute_command_with_status(f"rm -f ~/velocity/current_host.txt")
 
@@ -388,39 +376,167 @@ except Exception as e:
         stdout, _, status = self.execute_command_with_status("cat ~/velocity/current_host.txt 2>/dev/null")
         if status == 0 and '|' in stdout:
             parts = stdout.strip().split('|')
-            return parts[0], parts[1]
-        return None, None
+            return parts[0], int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+        return None, 0
 
     def close(self):
         if self.client: self.client.close()
 
-# ============================================================================
-# THREADS DE TRABALHO
-# ============================================================================
+class UpdateCheckWorker(QThread):
+    result = Signal(bool, str, str)
+    def run(self):
+        try:
+            resp = requests.get(UPDATE_JSON_URL, timeout=5).json()
+            remote_version = resp.get("version")
+            if remote_version and remote_version != CURRENT_VERSION:
+                self.result.emit(True, remote_version, resp.get("download_url"))
+            else:
+                self.result.emit(False, "", "")
+        except:
+            self.result.emit(False, "", "")
+
+class UpdateDownloadWorker(QThread):
+    progress = Signal(int)
+    finished = Signal()
+    error = Signal(str)
+
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+
+    def run(self):
+        try:
+            resp = requests.get(self.url, stream=True, timeout=10)
+            resp.raise_for_status()
+            total_size = int(resp.headers.get('content-length', 0))
+            block_size = 8192
+            downloaded = 0
+
+            with open("PearLauncher_new.exe", "wb") as f:
+                for data in resp.iter_content(block_size):
+                    f.write(data)
+                    downloaded += len(data)
+                    if total_size > 0:
+                        self.progress.emit(int((downloaded / total_size) * 100))
+
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+
+class SplashUpdateWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedSize(400, 200)
+
+        main_widget = QWidget(self)
+        main_widget.setObjectName("main_window")
+        main_widget.setFixedSize(400, 200)
+        main_widget.setStyleSheet(STYLESHEET)
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(CustomTitleBar(self, "Verificando Atualizações"))
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(20, 20, 20, 20)
+
+        self.lbl_status = QLabel("Conectando aos servidores...\nAguarde um momento.")
+        self.lbl_status.setAlignment(Qt.AlignCenter)
+        content_layout.addWidget(self.lbl_status)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        self.progress_bar.hide()
+        content_layout.addWidget(self.progress_bar)
+
+        self.btn_layout = QHBoxLayout()
+        self.btn_update = QPushButton("Baixar Atualização")
+        self.btn_update.setObjectName("btn_primary")
+        self.btn_update.hide()
+        self.btn_update.clicked.connect(self.start_download)
+
+        self.btn_skip = QPushButton("Pular (Não Recomendado)")
+        self.btn_skip.setObjectName("btn_danger")
+        self.btn_skip.hide()
+        self.btn_skip.clicked.connect(self.accept)
+
+        self.btn_layout.addWidget(self.btn_skip)
+        self.btn_layout.addWidget(self.btn_update)
+        content_layout.addLayout(self.btn_layout)
+
+        main_layout.addWidget(content)
+
+        self.download_url = ""
+        self.check_worker = UpdateCheckWorker()
+        self.check_worker.result.connect(self.on_check_result)
+        self.check_worker.start()
+
+    def on_check_result(self, has_update, version, url):
+        if has_update and url:
+            self.download_url = url
+            self.lbl_status.setText(f"Uma nova versão ({version}) está disponível!\nÉ recomendado atualizar para não ter erros.")
+            self.btn_update.show()
+            self.btn_skip.show()
+        else:
+            self.accept()
+
+    def start_download(self):
+        self.btn_update.hide()
+        self.btn_skip.hide()
+        self.lbl_status.setText("Baixando atualização... Por favor, não feche.")
+        self.progress_bar.show()
+
+        self.dl_worker = UpdateDownloadWorker(self.download_url)
+        self.dl_worker.progress.connect(self.progress_bar.setValue)
+        self.dl_worker.finished.connect(self.apply_update)
+        self.dl_worker.error.connect(self.on_download_error)
+        self.dl_worker.start()
+
+    def on_download_error(self, err):
+        QMessageBox.warning(self, "Erro na Atualização", f"Falha ao baixar:\n{err}")
+        self.accept()
+
+    def apply_update(self):
+        self.lbl_status.setText("Atualização concluída! Reiniciando...")
+        current_exe = os.path.basename(sys.executable)
+
+        bat_script = f"""@echo off
+echo Atualizando o Pear Launcher...
+timeout /t 2 /nobreak > NUL
+del "{current_exe}"
+ren "PearLauncher_new.exe" "{current_exe}"
+start "" "{current_exe}"
+del "%~f0"
+"""
+        with open("update.bat", "w") as f:
+            f.write(bat_script)
+
+        # Roda invisível também
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        subprocess.Popen("update.bat", shell=True, creationflags=flags)
+        os._exit(0)
+
 class CheckOracleThread(QThread):
-    result = Signal(bool, str)
+    result = Signal(bool, str, int)
 
     def run(self):
         try:
             oracle = OracleManager()
             oracle.connect()
-            host_user, ip_port = oracle.get_host_state()
+            host_user, num_players = oracle.get_host_state()
 
-            if host_user and ip_port and "Iniciando" not in ip_port:
-                try:
-                    ip, port = ip_port.split(":")
-                    with socket.create_connection((ip, int(port)), timeout=3): pass
-                    self.result.emit(True, host_user)
-                except Exception:
-                    oracle.set_host_state(False)
-                    self.result.emit(False, "")
-            elif host_user and "Iniciando" in ip_port:
-                self.result.emit(True, host_user)
+            if host_user and "Iniciando" not in host_user:
+                self.result.emit(True, host_user, num_players)
+            elif host_user and "Iniciando" in host_user:
+                self.result.emit(True, host_user, 0)
             else:
-                self.result.emit(False, "")
+                self.result.emit(False, "", 0)
             oracle.close()
         except Exception:
-            self.result.emit(False, "")
+            self.result.emit(False, "", 0)
 
 class MicrosoftAuthWorker(QThread):
     prompt_signal = Signal(str, str)
@@ -534,7 +650,7 @@ class SmartMonitorThread(QThread):
     def __init__(self):
         super().__init__()
         self.is_running = True
-        self.heavy_games = ["valorant", "cs2", "csgo", "leagueoflegends", "gta5", "r5apex", "fortniteclient"]
+        self.heavy_games = ["valorant", "valorant-win64-shipping", "cs2", "csgo", "leagueoflegends", "gta5", "r5apex", "fortniteclient"]
     def run(self):
         while self.is_running:
             try:
@@ -549,9 +665,6 @@ class SmartMonitorThread(QThread):
             QThread.sleep(15)
     def stop(self): self.is_running = False
 
-# ============================================================================
-# DIALOGOS FRAMELESS (LOGIN E MICROSOFT)
-# ============================================================================
 class MicrosoftLoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -647,7 +760,7 @@ class LoginWindow(QDialog):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        main_layout.addWidget(CustomTitleBar(self, "Pear Launcher - Login"))
+        main_layout.addWidget(CustomTitleBar(self, f"Pear Launcher v{CURRENT_VERSION} - Login"))
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -866,75 +979,142 @@ class SkinDropLabel(QLabel):
         fp, _ = QFileDialog.getOpenFileName(self, "Selecionar Skin", "", "Imagens PNG (*.png)")
         if fp: self.skin_dropped.emit(fp)
 
-# ============================================================================
-# COMPONENTES DO JOGO (MINECRAFT + PAPER SERVER)
-# ============================================================================
 class MinecraftClientThread(QThread):
     log_signal = Signal(str)
-    def __init__(self, player_name, is_premium, mc_uuid="", mc_token=""):
+    def __init__(self, player_name, is_premium, mc_uuid="", mc_token="", ram_gb=4):
         super().__init__()
-        self.player_name, self.is_premium, self.mc_uuid, self.mc_token = player_name, is_premium, mc_uuid, mc_token
+        self.player_name, self.is_premium, self.mc_uuid, self.mc_token, self.ram_gb = player_name, is_premium, mc_uuid, mc_token, ram_gb
         self.version = "26.1.2"
         self.mc_dir = os.path.abspath("./pear_minecraft_client")
 
     def run(self):
-        self.log_signal.emit(f"Iniciando o cliente Minecraft para: {self.player_name}")
+        self.log_signal.emit(f"Preparando Cliente Fabric ({self.ram_gb}GB RAM) para: {self.player_name}")
         try:
             minecraft_launcher_lib.install.install_minecraft_version(self.version, self.mc_dir)
+            self.log_signal.emit("Injetando motor de mods Fabric...")
+            minecraft_launcher_lib.fabric.install_fabric(self.version, self.mc_dir)
+
+            installed_versions = minecraft_launcher_lib.utils.get_installed_versions(self.mc_dir)
+            fabric_version = next((v['id'] for v in installed_versions if 'fabric' in v['id'] and self.version in v['id']), self.version)
+
+            self.inject_client_mods()
+
             options = {
                 "username": self.player_name,
                 "uuid": self.mc_uuid if self.is_premium and self.mc_uuid else str(uuid.uuid4()),
-                "token": self.mc_token if self.is_premium else ""
+                "token": self.mc_token if self.is_premium else "",
+                "jvmArguments": [f"-Xmx{self.ram_gb}G", f"-Xms{self.ram_gb}G"]
             }
-            cmd = minecraft_launcher_lib.command.get_minecraft_command(self.version, self.mc_dir, options)
+
+            self.log_signal.emit(f"Iniciando o jogo com mods ({fabric_version})...")
+            cmd = minecraft_launcher_lib.command.get_minecraft_command(fabric_version, self.mc_dir, options)
             cmd.extend(["--quickPlayMultiplayer", f"{ORACLE_IP}:25565"])
-            process = subprocess.Popen(cmd)
+
+            flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            process = subprocess.Popen(cmd, creationflags=flags)
             process.wait()
         except Exception as e:
             self.log_signal.emit(f"Erro ao abrir o Minecraft: {e}")
 
+    def inject_client_mods(self):
+        mods_dir = os.path.join(self.mc_dir, "mods")
+        os.makedirs(mods_dir, exist_ok=True)
+        self.log_signal.emit("Buscando Modpack na sua Nuvem Oracle via Túnel Seguro (SFTP)...")
+        try:
+            oracle = OracleManager(self.log_signal)
+            oracle.connect()
+            oracle.download_mods_sftp(mods_dir)
+            oracle.close()
+            self.log_signal.emit("Sincronização de Mods concluída!")
+        except Exception as e:
+            self.log_signal.emit(f"Aviso: Erro ao sincronizar mods via SFTP: {e}")
 
 class ServerRunnerThread(QThread):
     log_signal = Signal(str)
     status_signal = Signal(bool)
     skin_injection_signal = Signal(str)
 
-    def __init__(self, player_name, skin_url, profile_folder="vanilla"):
+    def __init__(self, player_name, skin_url, ram_gb=4, profile_folder="vanilla"):
         super().__init__()
-        self.player_name, self.skin_url = player_name, skin_url
+        self.player_name, self.skin_url, self.ram_gb = player_name, skin_url, ram_gb
         self.is_running = True
-        self.server_process = self.tunnel = self.oracle = None
+        self.server_process = self.tunnel_process = self.oracle = None
         self.profile_dir = os.path.abspath(os.path.join("perfis", profile_folder))
         os.makedirs(self.profile_dir, exist_ok=True)
         self.skin_injection_signal.connect(self.inject_skin_command)
 
-    def calculate_intelligent_ram(self):
-        try:
-            if sys.platform == "win32":
-                out = subprocess.check_output("wmic computersystem get totalphysicalmemory", shell=True).decode()
-                res = re.findall(r'\d+', out)
-                gb = int(res[0]) / (1024 ** 3) if res else 8.0
-            else:
-                gb = 8.0
-        except:
-            gb = 8.0
-        self.log_signal.emit(f"Hardware: {gb:.1f} GB de RAM total.")
-        if gb <= 5.0:
-            return "2G"
-        elif gb <= 9.0:
-            return "3G"
-        elif gb <= 13.0:
-            return "4G"
-        elif gb <= 17.0:
-            return "6G"
-        else:
-            return "8G"
-
     def inject_skin_command(self, player_name):
         if self.skin_url and self.skin_url != 'NONE' and self.server_process:
-            time.sleep(1)
-            self.server_process.stdin.write(f"skin nomad_{player_name.lower()} {player_name}\n")
+            time.sleep(2)
+            self.server_process.stdin.write(f"sr set {player_name} nomad_{player_name.lower()}\n")
             self.server_process.stdin.flush()
+
+    def check_and_download_plugins(self):
+        plugins_dir = os.path.join(self.profile_dir, "plugins")
+        os.makedirs(plugins_dir, exist_ok=True)
+
+        plugins = {
+            "EssentialsX.jar": "https://ci.ender.zone/job/EssentialsX/lastSuccessfulBuild/artifact/jars/EssentialsX.jar",
+            "SkinsRestorer.jar": "https://github.com/SkinsRestorer/SkinsRestorer/releases/latest/download/SkinsRestorer.jar",
+            "ViaVersion.jar": "https://github.com/ViaVersion/ViaVersion/releases/latest/download/ViaVersion.jar",
+            "Geyser-Spigot.jar": "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot",
+            "Chunky.jar": "https://github.com/pop4959/Chunky/releases/latest/download/Chunky-Bukkit.jar",
+            "VoiceChat-Plugin.jar": "modrinth:simple-voice-chat",
+            "TAB.jar": "modrinth:tab",
+            "GrimAC.jar": "modrinth:grim",
+            "GSit.jar": "modrinth:gsit",
+            "BlueMap.jar": "modrinth:bluemap",
+            "LifeSteal.jar": "modrinth:lifesteal-2",
+            "VeinMiner.jar": "modrinth:veinminer-ultimate-mining-enhancement",
+            "ImageFrame.jar": "modrinth:imageframe"
+        }
+
+        headers = {
+            "User-Agent": "PearLauncher/6.0 (Windows NT 10.0; Win64; x64)"
+        }
+
+        for name, source in plugins.items():
+            p_path = os.path.join(plugins_dir, name)
+            if not os.path.exists(p_path):
+                self.log_signal.emit(f"Baixando Plugin Profissional: {name}...")
+                try:
+                    if source.startswith("modrinth:"):
+                        slug = source.split(":")[1]
+                        resp = requests.get(f"https://api.modrinth.com/v2/project/{slug}/version", headers=headers, timeout=15)
+                        if resp.status_code == 200:
+                            versions = resp.json()
+                            dl_url = ""
+                            for ver in versions:
+                                loaders = ver.get("loaders", [])
+                                if any(l in loaders for l in ["paper", "spigot", "bukkit", "purpur"]):
+                                    for f in ver.get("files", []):
+                                        fname = f["filename"].lower()
+                                        if "velocity" in fname or "bungee" in fname or "fabric" in fname or "forge" in fname:
+                                            continue
+                                        if f.get("primary") or fname.endswith(".jar"):
+                                            dl_url = f["url"]
+                                            break
+                                if dl_url: break
+
+                            if dl_url:
+                                source = dl_url
+                            else:
+                                self.log_signal.emit(f"Falha: Nenhuma versão compatível encontrada no Modrinth para {name}.")
+                                continue
+
+                    resp = requests.get(source, headers=headers, timeout=30, allow_redirects=True)
+                    if resp.status_code == 200 and len(resp.content) > 50000:
+                        with open(p_path, 'wb') as f: f.write(resp.content)
+                    else:
+                        self.log_signal.emit(f"Falha de integridade ao baixar plugin: {name} (Tamanho ou Status Inválido)")
+                except Exception as e:
+                    self.log_signal.emit(f"Falha de rede ao baixar {name}: {e}")
+
+        vc_dir = os.path.join(plugins_dir, "voicechat")
+        os.makedirs(vc_dir, exist_ok=True)
+        vc_props = os.path.join(vc_dir, "voicechat-server.properties")
+        with open(vc_props, "w") as f:
+            f.write(f"port=24454\nvoice_host={ORACLE_IP}\n")
 
     def sync_skins_from_cloud(self):
         try:
@@ -947,13 +1127,39 @@ class ServerRunnerThread(QThread):
                 os.makedirs(local_skins_dir, exist_ok=True)
                 for fname, content in skin_files.items():
                     with open(os.path.join(local_skins_dir, fname), "w") as f: f.write(content)
-        except:
-            pass
+        except: pass
 
     def is_local_port_in_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(1)
             return sock.connect_ex(('127.0.0.1', port)) == 0
+
+    def kill_process_on_port(self, port):
+        self.log_signal.emit(f"Rastreando processo preso na porta {port}...")
+        try:
+            if sys.platform == "win32":
+                output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True).decode(errors='ignore')
+                killed = False
+                for line in output.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 5 and "LISTENING" in parts:
+                        pid = parts[-1]
+                        self.log_signal.emit(f"Exterminando processo fantasma (PID: {pid})...")
+                        flags = subprocess.CREATE_NO_WINDOW
+                        subprocess.run(['taskkill', '/F', '/PID', str(pid)], creationflags=flags)
+                        killed = True
+                return killed
+            else:
+                output = subprocess.check_output(f'lsof -t -i:{port}', shell=True).decode(errors='ignore')
+                killed = False
+                for pid in output.splitlines():
+                    if pid.strip():
+                        subprocess.run(['kill', '-9', pid.strip()])
+                        killed = True
+                return killed
+        except Exception:
+            pass
+        return False
 
     def wait_for_local_port(self, ip, port, timeout=60):
         start_time = time.time()
@@ -964,38 +1170,161 @@ class ServerRunnerThread(QThread):
             time.sleep(1)
         return False
 
+    def start_frpc_tunnel(self):
+        try:
+            flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            if sys.platform == "win32":
+                subprocess.run(['taskkill', '/F', '/IM', 'frpc.exe'], creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(['pkill', '-f', 'frpc'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except: pass
+
+        frpc_dir = os.path.abspath("frpc_bin")
+        os.makedirs(frpc_dir, exist_ok=True)
+        frpc_exe = os.path.join(frpc_dir, "frpc.exe" if sys.platform == "win32" else "frpc")
+
+        if not os.path.exists(frpc_exe):
+            self.log_signal.emit("Baixando Motor de Rede Avançado (FRP)...")
+            try:
+                if sys.platform == "win32":
+                    zip_path = os.path.join(frpc_dir, "frpc.zip")
+                    urllib.request.urlretrieve("https://github.com/fatedier/frp/releases/download/v0.54.0/frp_0.54.0_windows_amd64.zip", zip_path)
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(frpc_dir)
+                    shutil.move(os.path.join(frpc_dir, "frp_0.54.0_windows_amd64", "frpc.exe"), frpc_exe)
+                    os.remove(zip_path)
+            except Exception as e:
+                self.log_signal.emit(f"Erro ao baixar FRP: {e}")
+                return False
+
+        tunnel_id = uuid.uuid4().hex[:6]
+
+        toml_path = os.path.join(frpc_dir, "frpc.toml")
+        config = f"""
+serverAddr = "{ORACLE_IP}"
+serverPort = 7000
+auth.method = "token"
+auth.token = "pear_DSMP_2026_secreto"
+
+[[proxies]]
+name = "pear_tcp_{self.player_name}_{tunnel_id}"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 25565
+remotePort = 25577
+
+[[proxies]]
+name = "pear_udp_{self.player_name}_{tunnel_id}"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 24454
+remotePort = 24454
+"""
+        with open(toml_path, "w") as f: f.write(config)
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        self.tunnel_process = subprocess.Popen([frpc_exe, "-c", toml_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+        return True
+
     def run(self):
         jar_path = os.path.join(self.profile_dir, "server.jar")
-        if not os.path.exists(jar_path) or self.is_local_port_in_use(25565):
-            self.status_signal.emit(False);
-            return
+
+        if not os.path.exists(jar_path):
+            self.log_signal.emit("[SISTEMA] Motor do servidor não encontrado localmente.")
+            self.log_signal.emit("[SISTEMA] Baixando 'server.jar' direto da sua Nuvem Oracle... (Isso pode levar alguns minutos)")
+            try:
+                dl_oracle = OracleManager(self.log_signal)
+                dl_oracle.connect()
+                sftp = dl_oracle.client.open_sftp()
+                sftp.get('/home/ubuntu/velocity/server.jar', jar_path)
+                sftp.close()
+                dl_oracle.close()
+                self.log_signal.emit("[SISTEMA] 'server.jar' baixado com sucesso da Nuvem!")
+            except Exception as e:
+                self.log_signal.emit(f"[ERRO FATAL] Falha ao baixar server.jar da nuvem: {e}")
+                self.log_signal.emit("AVISO PRO DONO: Você precisa enviar o 'server.jar' para a pasta '/home/ubuntu/velocity/' na Oracle Cloud via SCP!")
+                self.status_signal.emit(False)
+                return
+
+        eula_path = os.path.join(self.profile_dir, "eula.txt")
+        if not os.path.exists(eula_path):
+            with open(eula_path, 'w') as f: f.write("eula=true\n")
+
+        if self.is_local_port_in_use(25565):
+            self.log_signal.emit("[SISTEMA] Servidor Fantasma detectado na porta 25565. Iniciando protocolo de eliminação...")
+            self.kill_process_on_port(25565)
+            time.sleep(2)
+            if self.is_local_port_in_use(25565):
+                self.log_signal.emit("[ERRO FATAL] O fantasma resistiu! Feche o Java no Gerenciador de Tarefas ou reinicie o PC.")
+                self.status_signal.emit(False)
+                return
+            else:
+                self.log_signal.emit("[SISTEMA] Caminho livre! Fantasma eliminado com sucesso. Retomando o boot...")
 
         server_props = os.path.join(self.profile_dir, "server.properties")
         if os.path.exists(server_props):
             with open(server_props, 'r') as f: data = f.read()
             with open(server_props, 'w') as f: f.write(re.sub(r'(?m)^online-mode=.*', 'online-mode=false', data))
 
+        self.check_and_download_plugins()
         self.sync_skins_from_cloud()
+
+        try:
+            secret_path = os.path.join(self.profile_dir, "forwarding.secret")
+            if not os.path.exists(secret_path):
+                with open(secret_path, 'w') as f: f.write(uuid.uuid4().hex + uuid.uuid4().hex)
+            with open(secret_path, 'r') as f: secret = f.read().strip()
+
+            config_dir = os.path.join(self.profile_dir, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            paper_global = os.path.join(config_dir, "paper-global.yml")
+
+            if not os.path.exists(paper_global):
+                with open(paper_global, "w") as f:
+                    f.write(f"proxies:\n  velocity-support:\n    enabled: true\n    online-mode: false\n    secret: '{secret}'\n")
+            else:
+                with open(paper_global, "r") as f: data = f.read()
+                if "velocity-support:" in data:
+                    data = re.sub(
+                        r"^([ \t]*)velocity-support:\s*\n(?:[ \t]+.*\n)*",
+                        lambda m: f"{m.group(1)}velocity-support:\n{m.group(1)}  enabled: true\n{m.group(1)}  online-mode: false\n{m.group(1)}  secret: '{secret}'\n",
+                        data,
+                        flags=re.MULTILINE
+                    )
+                else:
+                    if "proxies:" in data:
+                        data = re.sub(
+                            r"^([ \t]*)proxies:\s*\n",
+                            lambda m: f"{m.group(1)}proxies:\n{m.group(1)}  velocity-support:\n{m.group(1)}    enabled: true\n{m.group(1)}    online-mode: false\n{m.group(1)}    secret: '{secret}'\n",
+                            data,
+                            flags=re.MULTILINE
+                        )
+                    else:
+                        data += f"\nproxies:\n  velocity-support:\n    enabled: true\n    online-mode: false\n    secret: '{secret}'\n"
+
+                with open(paper_global, "w") as f: f.write(data)
+
+            self.log_signal.emit("Suporte ao Velocity injetado com sucesso no PaperMC.")
+        except Exception as e:
+            self.log_signal.emit(f"Falha ao configurar Velocity no Paper: {e}")
+
         self.log_signal.emit("Verificando Save P2P na Nuvem...")
         try:
             local_zip = os.path.join(self.profile_dir, "cloud_save.zip")
             sync_oracle = OracleManager(self.log_signal)
             sync_oracle.connect()
-            sync_oracle.set_host_state(True, self.player_name, "Iniciando...")
+            sync_oracle.set_host_state(True, self.player_name, 0)
             if sync_oracle.download_world(local_zip):
                 self.log_signal.emit("Mundo extraído com sucesso.")
                 with zipfile.ZipFile(local_zip, 'r') as zip_ref: zip_ref.extractall(self.profile_dir)
                 os.remove(local_zip)
             sync_oracle.close()
-        except:
-            pass
+        except: pass
 
-        # Otimizações de RAM e Aikar's Flags Injetadas Aqui
-        ram = self.calculate_intelligent_ram()
+        ram_flag = f"{self.ram_gb}G"
 
         aikar_flags = [
             "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
-            "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
+            "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC",
             "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M",
             "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
             "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
@@ -1003,95 +1332,97 @@ class ServerRunnerThread(QThread):
             "-XX:MaxTenuringThreshold=1", "-Dusing.aikars.flags=https://mcflags.emc.gs", "-Daikars.new.flags=true"
         ]
 
-        comando_java = ["java", f"-Xmx{ram}", f"-Xms{ram}"] + aikar_flags + [
-            "-Djline.terminal=jline.UnsupportedTerminal", "-jar", "server.jar", "nogui", "--nojline"]
+        comando_java = ["java", f"-Xmx{ram_flag}", f"-Xms{ram_flag}"] + aikar_flags + ["-Djline.terminal=jline.UnsupportedTerminal", "-jar", "server.jar", "nogui", "--nojline"]
 
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self.server_process = subprocess.Popen(
             comando_java,
             cwd=self.profile_dir,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            creationflags=flags
         )
 
         server_ready_event = threading.Event()
+        self.players_online = 0
 
         def read_paper_logs(process, signal, injection_signal, ready_event):
-            for line in iter(process.stdout.readline, ''):
-                if line:
-                    clean_line = line.strip()
-                    signal.emit(f"[PAPER] {clean_line}")
-                    if "logged in with entity id" in clean_line or "joined the game" in clean_line:
-                        if self.player_name in clean_line.split(): injection_signal.emit(self.player_name)
-                    if "Done (" in clean_line or 'For help, type "help"' in clean_line:
-                        ready_event.set()
-            process.stdout.close()
+            try:
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        clean_line = line.strip()
+                        signal.emit(f"[PAPER] {clean_line}")
+                        if "logged in with entity id" in clean_line or "joined the game" in clean_line:
+                            self.players_online += 1
+                            if self.player_name in clean_line.split(): injection_signal.emit(self.player_name)
+                        elif "left the game" in clean_line:
+                            self.players_online = max(0, self.players_online - 1)
+                        if "Done (" in clean_line or 'For help, type "help"' in clean_line:
+                            ready_event.set()
+            except Exception as e:
+                signal.emit(f"[ERRO_LOGS] {e}")
+            finally:
+                process.stdout.close()
 
-        threading.Thread(target=read_paper_logs,
-                         args=(self.server_process, self.log_signal, self.skin_injection_signal, server_ready_event),
-                         daemon=True).start()
+        log_thread = threading.Thread(target=read_paper_logs,
+                                      args=(self.server_process, self.log_signal, self.skin_injection_signal,
+                                            server_ready_event), daemon=True)
+        log_thread.start()
 
-        if not self.wait_for_local_port("127.0.0.1", 25565, timeout=120): self.status_signal.emit(False); return
+        self.log_signal.emit("Aguardando o servidor PaperMC subir na porta 25565...")
+        if not self.wait_for_local_port("127.0.0.1", 25565, timeout=120):
+            self.log_signal.emit("Timeout: O servidor não subiu no tempo esperado!")
+            self.status_signal.emit(False)
+            return
 
         try:
-            # Ngrok Forçado para a Região América do Sul (sa)
-            ngrok.set_auth_token(os.getenv("NGROK_TOKEN"))
-            config_sa = conf.PyngrokConfig(region="sa")
-            self.tunnel = ngrok.connect(25565, "tcp", pyngrok_config=config_sa)
-            public_ip, tunnel_port = self.tunnel.public_url.replace("tcp://", "").split(":")
+            self.log_signal.emit("Estabelecendo conexão VPN direta (FRP)...")
+            if not self.start_frpc_tunnel(): raise Exception("Falha ao ligar FRP.")
 
             self.oracle = OracleManager(self.log_signal)
             self.oracle.connect()
             self.oracle.sync_forwarding_secret(self.profile_dir)
 
-            self.log_signal.emit("Avisando a API da Nuvem sobre o novo túnel...")
-            api_payload = {
-                "player_uuid": self.player_name,
-                "public_ip": public_ip,
-                "tunnel_port": tunnel_port
-            }
-            api_resp = requests.post(
-                f"http://{ORACLE_IP}:5000/api/host/update-tunnel",
-                json=api_payload,
-                headers={"X-API-Key": "minecraftpear2026"},
-                timeout=20
-            )
-
-            if api_resp.status_code != 200:
-                raise Exception(f"Erro na API ({api_resp.status_code}): {api_resp.text}")
-
+            self.log_signal.emit("Configurando Oracle para rotear túnel interno...")
+            if not self.oracle.prepare_and_update(): raise Exception("Falha Velocity TOML")
+            if not self.oracle.restart_process(): raise Exception("Falha Boot Velocity")
             if not self.oracle.wait_for_velocity(timeout=60): raise Exception("Falha Logs Velocity")
 
             self.log_signal.emit("Aguardando o mapa carregar até 100%...")
             server_ready_event.wait(timeout=240)
             if not self.is_running: return
 
-            self.log_signal.emit("Servidor pronto!")
+            self.log_signal.emit("Servidor e Microfone Online e Roteados!")
             self.status_signal.emit(True)
+
+            while self.is_running and self.server_process.poll() is None:
+                try: self.oracle.set_host_state(True, self.player_name, self.players_online)
+                except: pass
+                QThread.sleep(15)
+
         except Exception as e:
             self.log_signal.emit(f"Abortando: {e}")
             if self.oracle: self.oracle.close()
             self.status_signal.emit(False)
             return
 
-        while self.is_running and self.server_process.poll() is None:
-            if not self.oracle.is_velocity_running():
-                self.log_signal.emit("Nuvem caiu!")
-                break
-            QThread.sleep(5)
-
         self.shutdown_routine()
 
     def shutdown_routine(self):
-        self.log_signal.emit("Desligando...")
+        self.log_signal.emit("Salvando mundo antes de desligar...")
         if self.server_process and self.server_process.poll() is None:
             try:
+                self.server_process.stdin.write("save-all\n")
+                self.server_process.stdin.flush()
+                time.sleep(2)
                 self.server_process.stdin.write("stop\n")
                 self.server_process.stdin.flush()
                 self.server_process.wait(timeout=30)
-            except:
-                self.server_process.kill()
+            except: self.server_process.kill()
 
         try:
             local_zip = os.path.join(self.profile_dir, "cloud_save.zip")
@@ -1100,8 +1431,7 @@ class ServerRunnerThread(QThread):
                     folder_path = os.path.join(self.profile_dir, folder)
                     if os.path.exists(folder_path):
                         for root, dirs, files in os.walk(folder_path):
-                            for file in files: zipf.write(os.path.join(root, file),
-                                                          os.path.relpath(os.path.join(root, file), self.profile_dir))
+                            for file in files: zipf.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), self.profile_dir))
 
             sync_oracle = OracleManager(self.log_signal)
             sync_oracle.connect()
@@ -1109,30 +1439,24 @@ class ServerRunnerThread(QThread):
             sync_oracle.set_host_state(False)
             sync_oracle.close()
             self.log_signal.emit("Backup P2P concluído.")
-        except:
-            pass
+        except: pass
 
         if self.oracle:
-            try:
-                self.oracle.close()
-            except:
-                pass
-        if self.tunnel: ngrok.disconnect(self.tunnel.public_url)
-        ngrok.kill()
+            try: self.oracle.close()
+            except: pass
+
+        if self.tunnel_process: self.tunnel_process.kill()
         self.status_signal.emit(False)
 
-    def stop(self):
-        self.is_running = False
+    def stop(self): self.is_running = False
 
-# ============================================================================
-# MAIN LAUNCHER UI
-# ============================================================================
 class PearLauncher(QMainWindow):
-    def __init__(self, username, skin_url, is_premium, ghost_mode=False, allow_hosting=True, mc_uuid="", mc_token=""):
+    def __init__(self, username, skin_url, is_premium, ghost_mode=False, allow_hosting=True, mc_uuid="", mc_token="", ram_gb=4):
         super().__init__()
         self.username, self.skin_url, self.is_premium, self.ghost_mode, self.allow_hosting = username, skin_url, is_premium, ghost_mode, allow_hosting
-        self.mc_uuid, self.mc_token = mc_uuid, mc_token
+        self.mc_uuid, self.mc_token, self.ram_gb = mc_uuid, mc_token, ram_gb
         self.is_force_quitting = False
+        self.is_checking_status = False
 
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -1160,15 +1484,20 @@ class PearLauncher(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        main_layout.addWidget(CustomTitleBar(self, f"Pear Launcher - {self.username}"))
+        main_layout.addWidget(CustomTitleBar(self, f"Pear Launcher v{CURRENT_VERSION} - {self.username}"))
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(20, 20, 20, 20)
 
         self.tabs = QTabWidget()
-        self.tab_launcher = QWidget(); self.tab_perfil = QWidget(); self.tab_config = QWidget()
+        self.tab_launcher = QWidget()
+        self.tab_perfil = QWidget()
+        self.tab_addons = QWidget()
+        self.tab_config = QWidget()
+
         self.tabs.addTab(self.tab_launcher, "Iniciar Servidor / Jogar")
+        self.tabs.addTab(self.tab_addons, "Addons Instalados")
         self.tabs.addTab(self.tab_perfil, "Skins e Perfil")
         self.tabs.addTab(self.tab_config, "Configurações")
         content_layout.addWidget(self.tabs)
@@ -1177,14 +1506,18 @@ class PearLauncher(QMainWindow):
         self.setCentralWidget(main_widget)
 
         self.build_launcher_tab()
+        self.build_addons_tab()
         self.build_perfil_tab()
         self.build_config_tab()
-        self.smart_monitor = None
 
         if "--startup" in sys.argv and self.ghost_mode:
             self.hide()
             self.tray_icon.showMessage("Pear Launcher", "Rodando em segundo plano.", QSystemTrayIcon.Information, 3000)
             QTimer.singleShot(1000, self.auto_start_ghost_host)
+
+        self.ping_timer = QTimer(self)
+        self.ping_timer.timeout.connect(self.passive_status_check)
+        self.ping_timer.start(10000)
 
     def tray_icon_activated(self, reason):
         if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
@@ -1211,15 +1544,45 @@ class PearLauncher(QMainWindow):
         self.check_thread.result.connect(self.handle_ghost_oracle_check)
         self.check_thread.start()
 
-    def handle_ghost_oracle_check(self, has_host, host_name):
+    def handle_ghost_oracle_check(self, has_host, host_name, players):
         if not has_host:
-            self.update_status("host")
+            self.update_status("host", players)
             self.start_server()
 
-    def update_status(self, status_type):
-        if status_type == "host": self.host_indicator.setText("<span style='color: #10b981; font-size: 16px;'>●</span> Status: Host")
-        elif status_type == "guest": self.host_indicator.setText("<span style='color: #3b82f6; font-size: 16px;'>●</span> Status: Convidado")
-        else: self.host_indicator.setText("<span style='color: #64748b; font-size: 16px;'>●</span> Status: Offline")
+    def passive_status_check(self):
+        if hasattr(self, 'server_thread') and self.server_thread.isRunning():
+            self.update_status("host", getattr(self.server_thread, 'players_online', 0))
+            return
+
+        if not self.is_checking_status:
+            self.is_checking_status = True
+            self.passive_check_thread = CheckOracleThread()
+            self.passive_check_thread.result.connect(self.handle_passive_status_result)
+            self.passive_check_thread.start()
+
+    def handle_passive_status_result(self, has_host, host_name, players):
+        self.is_checking_status = False
+        if has_host: self.update_status("host" if host_name == self.username else "guest", players)
+        else: self.update_status("offline", 0)
+
+    def update_status(self, status_type, players=0):
+        if status_type == "host":
+            self.server_status_indicator.setText("<span style='color: #10b981; font-size: 14px;'>●</span> Servidor: Online")
+            self.role_indicator.setText("<span style='color: #10b981; font-size: 14px;'>●</span> Status: Host")
+            self.players_indicator.setText(f"<span style='color: #cbd5e1; font-size: 13px;'>Jogadores Online: {players}</span>")
+            self.players_indicator.show()
+        elif status_type == "guest":
+            self.server_status_indicator.setText("<span style='color: #10b981; font-size: 14px;'>●</span> Servidor: Online")
+            self.role_indicator.setText("<span style='color: #3b82f6; font-size: 14px;'>●</span> Status: Convidado")
+            self.players_indicator.setText(f"<span style='color: #cbd5e1; font-size: 13px;'>Jogadores Online: {players}</span>")
+            self.players_indicator.show()
+        else:
+            self.server_status_indicator.setText("<span style='color: #64748b; font-size: 14px;'>●</span> Servidor: Offline")
+            self.role_indicator.setText("<span style='color: #64748b; font-size: 14px;'>●</span> Status: Offline")
+            self.players_indicator.hide()
+
+        self.server_status_indicator.show()
+        self.role_indicator.show()
 
     def build_launcher_tab(self):
         layout = QVBoxLayout(self.tab_launcher)
@@ -1227,12 +1590,24 @@ class PearLauncher(QMainWindow):
 
         info_layout = QHBoxLayout()
         info = QLabel(f"Bem-vindo, <b>{self.username}</b>!")
-        self.host_indicator = QLabel()
-        self.update_status("offline")
+        self.server_status_indicator = QLabel()
+        self.role_indicator = QLabel()
+        self.players_indicator = QLabel()
 
-        info_layout.addWidget(info); info_layout.addStretch(); info_layout.addWidget(self.host_indicator)
+        info_layout.addWidget(info)
+        info_layout.addStretch()
+
+        status_box = QVBoxLayout()
+        status_box.setSpacing(2)
+        status_box.addWidget(self.server_status_indicator, alignment=Qt.AlignRight)
+        status_box.addWidget(self.role_indicator, alignment=Qt.AlignRight)
+        status_box.addWidget(self.players_indicator, alignment=Qt.AlignRight)
+
+        info_layout.addLayout(status_box)
         layout.addLayout(info_layout)
         layout.addSpacing(10)
+
+        self.update_status("offline")
 
         self.btn_jogar = QPushButton("JOGAR")
         self.btn_jogar.setObjectName("btn_primary")
@@ -1244,6 +1619,67 @@ class PearLauncher(QMainWindow):
         self.console = QTextEdit()
         self.console.setReadOnly(True)
         layout.addWidget(self.console)
+
+    def build_addons_tab(self):
+        layout = QVBoxLayout(self.tab_addons)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        info_label = QLabel("Este é o arsenal de Addons que o Pear Launcher administra automaticamente. <br>Você não precisa fazer nada! Tudo é injetado e atualizado nos bastidores.")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet("color: #94a3b8; font-size: 13px; margin-bottom: 10px;")
+        layout.addWidget(info_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background-color: transparent;")
+        grid = QGridLayout(scroll_content)
+        grid.setSpacing(15)
+
+        addons = [
+            ("Simple Voice Chat", "Áudio de proximidade 3D com chat em grupo.", "Cliente & Servidor"),
+            ("Sodium & Lithium", "Multiplica o FPS por 3x e remove lags do mapa.", "Cliente de Otimização"),
+            ("Litematica", "Gera hologramas na tela para você copiar farms do Youtube.", "Mod Cliente"),
+            ("Xaero's World Map", "Cria marcações (waypoints) para não perder sua casa.", "Mod Cliente"),
+            ("Iris Shaders", "Libera o uso de texturas e sombras realistas no jogo.", "Mod Cliente"),
+            ("REI & AppleSkin", "Mostra todas as receitas de crafting e a saciedade da comida.", "Mod Cliente"),
+            ("BlueMap", "Gera um mapa 3D do seu mundo visível no navegador.", "Servidor - Mapa 3D"),
+            ("LifeSteal", "Ganhe o coração de quem você mata, mas cuidado...", "Servidor - Mecânica"),
+            ("Terra & Chunky", "Geração de montanhas épicas e pré-renderização de mundo.", "Servidor - Geração"),
+            ("GSit & ImageFrame", "Sente nas escadas e coloque imagens nas molduras.", "Servidor - Roleplay"),
+            ("VeinMiner", "Quebre um minério com Shift para quebrar a veia inteira.", "Servidor - Ferramentas"),
+            ("TAB & LuckPerms", "Cores no Tab, prefixos [Dono] e cargos profissionais.", "Servidor - Estilo"),
+            ("GeyserMC & ViaVersion", "Jogadores de Celular/Videogame podem entrar no Java.", "Servidor - Crossplay"),
+            ("GrimAC", "O mais avançado Anti-Cheat do mercado sem lags.", "Servidor - Segurança")
+        ]
+
+        for i, (title, desc, tipo) in enumerate(addons):
+            card = QFrame()
+            card.setObjectName("addon_card")
+            c_layout = QVBoxLayout(card)
+
+            top_row = QHBoxLayout()
+            t_lbl = QLabel(title)
+            t_lbl.setObjectName("addon_title")
+            s_lbl = QLabel("INSTALADO")
+            s_lbl.setObjectName("addon_status")
+            top_row.addWidget(t_lbl)
+            top_row.addStretch()
+            top_row.addWidget(s_lbl)
+
+            d_lbl = QLabel(f"<b>{tipo}</b><br>{desc}")
+            d_lbl.setObjectName("addon_desc")
+            d_lbl.setWordWrap(True)
+
+            c_layout.addLayout(top_row)
+            c_layout.addWidget(d_lbl)
+
+            grid.addWidget(card, i // 2, i % 2)
+
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
 
     def build_perfil_tab(self):
         layout = QVBoxLayout(self.tab_perfil)
@@ -1267,14 +1703,9 @@ class PearLauncher(QMainWindow):
     def build_config_tab(self):
         layout = QVBoxLayout(self.tab_config)
         layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setSpacing(15)
 
-        layout.addWidget(QLabel("Token do Ngrok (Authtoken):"))
-        self.config_ngrok = QLineEdit()
-        self.config_ngrok.setText(os.getenv("NGROK_TOKEN", ""))
-        layout.addWidget(self.config_ngrok)
-
-        layout.addWidget(QLabel("Arquivo da Chave SSH da Oracle (.key):"))
+        layout.addWidget(QLabel("Arquivo da Chave SSH da Nuvem Oracle (.key):"))
         kl = QHBoxLayout()
         self.config_key = QLineEdit()
         self.config_key.setReadOnly(True)
@@ -1285,6 +1716,22 @@ class PearLauncher(QMainWindow):
         self.btn_browse_config.clicked.connect(lambda: self.config_key.setText(QFileDialog.getOpenFileName(self, "Chave SSH", "", "Key (*.key);;All (*)")[0] or self.config_key.text()))
         kl.addWidget(self.config_key); kl.addWidget(self.btn_browse_config)
         layout.addLayout(kl)
+
+        layout.addWidget(QLabel("Alocação de Memória RAM para o Jogo/Servidor:"))
+        ram_layout = QHBoxLayout()
+        self.ram_slider = QSlider(Qt.Horizontal)
+        self.ram_slider.setMinimum(2)
+        self.ram_slider.setMaximum(12)
+        self.ram_slider.setTickPosition(QSlider.TicksBelow)
+        self.ram_slider.setTickInterval(2)
+        self.ram_slider.setValue(self.ram_gb)
+
+        self.ram_label = QLabel(f"<b>{self.ram_gb} GB</b>")
+        self.ram_slider.valueChanged.connect(lambda v: self.ram_label.setText(f"<b>{v} GB</b>"))
+
+        ram_layout.addWidget(self.ram_slider)
+        ram_layout.addWidget(self.ram_label)
+        layout.addLayout(ram_layout)
 
         self.config_allow_host = ToggleSwitch()
         self.config_allow_host.setChecked(self.allow_hosting)
@@ -1334,22 +1781,22 @@ class PearLauncher(QMainWindow):
         self.check_thread.result.connect(self.handle_jogar_oracle_check)
         self.check_thread.start()
 
-    def handle_jogar_oracle_check(self, has_host, host_name):
+    def handle_jogar_oracle_check(self, has_host, host_name, players):
         if has_host:
-            self.update_status("host" if host_name == self.username else "guest")
-            self.btn_jogar.setText("Abrindo Minecraft...")
+            self.update_status("host" if host_name == self.username else "guest", players)
+            self.btn_jogar.setText("Injetando Mods e Abrindo Minecraft...")
             self.launch_game()
         else:
             if self.allow_hosting:
-                self.update_status("host")
-                self.btn_jogar.setText("Iniciando Servidor...")
+                self.update_status("host", 0)
+                self.btn_jogar.setText("Ligando Motor de Rede (FRP)...")
                 self.start_server()
             else:
                 self.btn_jogar.setText("JOGAR")
                 self.btn_jogar.setEnabled(True)
 
     def launch_game(self):
-        self.mc_thread = MinecraftClientThread(self.username, self.is_premium, self.mc_uuid, self.mc_token)
+        self.mc_thread = MinecraftClientThread(self.username, self.is_premium, self.mc_uuid, self.mc_token, self.ram_gb)
         self.mc_thread.log_signal.connect(self.log)
         self.mc_thread.finished.connect(self.on_game_closed)
         self.mc_thread.start()
@@ -1360,7 +1807,7 @@ class PearLauncher(QMainWindow):
 
     def start_server(self):
         self.console.clear()
-        self.server_thread = ServerRunnerThread(self.username, self.skin_url)
+        self.server_thread = ServerRunnerThread(self.username, self.skin_url, self.ram_gb)
         self.server_thread.log_signal.connect(self.log)
         self.server_thread.status_signal.connect(self.on_status)
         self.server_thread.start()
@@ -1372,21 +1819,20 @@ class PearLauncher(QMainWindow):
     def on_heavy_game_detected(self, game_name):
         self.tray_icon.showMessage("Alocação Inteligente", f"Jogo {game_name} detectado! Desligando para não dar Lag.", QSystemTrayIcon.Warning, 5000)
         self.stop_server()
-        self.update_status("offline")
+        self.update_status("offline", 0)
 
     def on_status(self, on):
         if on:
-            self.btn_jogar.setText("Abrindo Minecraft...")
+            self.btn_jogar.setText("Injetando Mods e Abrindo Minecraft...")
             self.launch_game()
-        else: self.update_status("offline")
+        else: self.update_status("offline", 0)
 
     def stop_server(self):
         if hasattr(self, 'smart_monitor') and self.smart_monitor: self.smart_monitor.stop()
         if hasattr(self, 'server_thread'): self.server_thread.stop()
 
     def save_configs(self):
-        if not self.config_ngrok.text().strip() or not self.config_key.text().strip(): return
-        with open(".env", "w") as f: f.write(f"NGROK_TOKEN={self.config_ngrok.text().strip()}\n")
+        if not self.config_key.text().strip(): return
         settings = {}
         try:
             with open("launcher_settings.json", "r") as f: settings = json.load(f)
@@ -1394,6 +1840,7 @@ class PearLauncher(QMainWindow):
         settings["ghost_mode"] = self.config_ghost.isChecked()
         settings["startup"] = self.config_startup.isChecked()
         settings["allow_hosting"] = self.config_allow_host.isChecked()
+        settings["ram_gb"] = self.ram_slider.value()
         with open("launcher_settings.json", "w") as f: json.dump(settings, f)
 
         if self.config_startup.isChecked() and sys.platform == "win32":
@@ -1401,7 +1848,6 @@ class PearLauncher(QMainWindow):
         elif not self.config_startup.isChecked() and sys.platform == "win32":
             subprocess.run(['reg', 'delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'PearLauncher', '/f'], creationflags=subprocess.CREATE_NO_WINDOW)
 
-        import shutil
         tk = os.path.join(os.getcwd(), "ssh-key-2026-07-02.key")
         try:
             if os.path.abspath(self.config_key.text().strip()) != tk: shutil.copy(self.config_key.text().strip(), tk)
@@ -1409,9 +1855,10 @@ class PearLauncher(QMainWindow):
 
         self.ghost_mode = self.config_ghost.isChecked()
         self.allow_hosting = self.config_allow_host.isChecked()
+        self.ram_gb = self.ram_slider.value()
         if not self.allow_hosting and hasattr(self, 'server_thread') and self.server_thread.isRunning():
             self.stop_server()
-            self.update_status("offline")
+            self.update_status("offline", 0)
 
     def do_logout(self):
         try:
@@ -1419,6 +1866,9 @@ class PearLauncher(QMainWindow):
             data["saved_user"] = data["saved_pass"] = data["ms_token"] = ""
             with open("launcher_settings.json", "w") as f: json.dump(data, f)
         except: pass
+
+        self.stop_server()
+        time.sleep(1)
         subprocess.Popen([sys.executable] + sys.argv)
         self.force_quit()
 
@@ -1428,6 +1878,7 @@ class PearLauncher(QMainWindow):
             oracle.connect()
             oracle.set_host_state(False)
             oracle.close()
+            self.log("Nuvem resetada com sucesso!")
         except: pass
 
     def load_skin_preview(self, file_path):
@@ -1451,7 +1902,6 @@ class PearLauncher(QMainWindow):
         else: self.btn_upload.setText("Tentar Novamente")
 
     def log(self, msg):
-        # Proteção de RAM: Limita o histórico do console a 1000 linhas
         if self.console.document().blockCount() > 1000:
             cursor = self.console.textCursor()
             cursor.movePosition(cursor.Start)
@@ -1467,11 +1917,11 @@ class SetupWizard(QDialog):
         super().__init__()
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(500, 220)
+        self.setFixedSize(500, 180)
 
         main_widget = QWidget(self)
         main_widget.setObjectName("main_window")
-        main_widget.setFixedSize(500, 220)
+        main_widget.setFixedSize(500, 180)
         main_widget.setStyleSheet(STYLESHEET)
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -1481,10 +1931,6 @@ class SetupWizard(QDialog):
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(20, 20, 20, 20)
-
-        content_layout.addWidget(QLabel("Token do Ngrok:"))
-        self.input_ngrok = QLineEdit()
-        content_layout.addWidget(self.input_ngrok)
 
         content_layout.addWidget(QLabel("Chave SSH (.key):"))
         kl = QHBoxLayout()
@@ -1501,33 +1947,44 @@ class SetupWizard(QDialog):
 
         main_layout.addWidget(content)
 
+    def accept(self):
+        pass
+
+    def force_accept(self):
+        super().accept()
+
     def save(self):
-        if not self.input_ngrok.text().strip() or not self.input_key.text().strip(): return
-        with open(".env", "w") as f: f.write(f"NGROK_TOKEN={self.input_ngrok.text().strip()}\n")
-        import shutil
+        if not self.input_key.text().strip(): return
         tk = os.path.join(os.getcwd(), "ssh-key-2026-07-02.key")
         try:
             if os.path.abspath(self.input_key.text().strip()) != tk: shutil.copy(self.input_key.text().strip(), tk)
         except shutil.SameFileError: pass
-        self.accept()
+
+        self.force_accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    if not os.path.exists(".env") or not os.path.exists("ssh-key-2026-07-02.key"):
+    update_splash = SplashUpdateWindow()
+    update_splash.exec()
+
+    if not os.path.exists("ssh-key-2026-07-02.key"):
         if SetupWizard().exec() != QDialog.Accepted: sys.exit()
 
     ghost_mode = allow_hosting = True
+    ram_gb = 4
     try:
         with open("launcher_settings.json", "r") as f:
             settings = json.load(f)
-            ghost_mode, allow_hosting = settings.get("ghost_mode", False), settings.get("allow_hosting", True)
+            ghost_mode = settings.get("ghost_mode", False)
+            allow_hosting = settings.get("allow_hosting", True)
+            ram_gb = settings.get("ram_gb", 4)
     except: pass
 
     login = LoginWindow()
     if login.exec() == QDialog.Accepted:
-        w = PearLauncher(login.logged_user, login.logged_skin, login.logged_premium, ghost_mode, allow_hosting, login.logged_uuid, login.logged_token)
+        w = PearLauncher(login.logged_user, login.logged_skin, login.logged_premium, ghost_mode, allow_hosting, login.logged_uuid, login.logged_token, ram_gb)
         if not ("--startup" in sys.argv and ghost_mode): w.show()
         sys.exit(app.exec())
     else:
-        sys.exit(0)
+        sys.exit()

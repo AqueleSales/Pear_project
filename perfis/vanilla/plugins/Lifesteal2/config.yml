@@ -1,0 +1,125 @@
+# Hearts & limits
+hearts:
+  default: 10
+  min: 1
+  max:
+    enabled: true
+    value: 40
+
+# Heart-consume settings
+heart-consume:
+  # If false, consuming a heart only raises max HP — the player is NOT healed.
+  heal: true
+  # If heal=true AND heal-fully=true, the player is healed to full max HP.
+  # If heal=true AND heal-fully=false, the player is healed by 2 HP (one heart).
+  heal-fully: true
+  # Optional cooldown between heart consumes (in seconds, 0 = disabled).
+  cooldown-seconds: 0
+
+# Revive settings
+revive:
+  start-hearts: 3
+  gui:
+    enabled: true
+    page-size: 54     # 9..54 (must be multiple of 9). If players exceed this, pages are used.
+    title: "&9Select one player to revive"
+    pagination: true  # show next/prev arrows if more than one page
+    prev-item: "ARROW"
+    next-item: "ARROW"
+
+# Leaderboard settings
+leaderboard:
+  include-banned: false
+
+# Crafting recipes go LEFT → RIGHT, starting from the top row.
+crafting:
+  heart-recipe:
+    - DIAMOND
+    - NETHERITE_INGOT
+    - DIAMOND
+    - EMERALD_BLOCK
+    - NETHER_STAR
+    - EMERALD_BLOCK
+    - DIAMOND
+    - NETHERITE_INGOT
+    - DIAMOND
+
+  revive-recipe:
+    - NETHERITE_INGOT
+    - DIAMOND
+    - NETHERITE_INGOT
+    - ENCHANTED_GOLDEN_APPLE
+    - NETHER_STAR
+    - ENCHANTED_GOLDEN_APPLE
+    - NETHERITE_INGOT
+    - DIAMOND
+    - NETHERITE_INGOT
+
+# Restrict where lifesteal applies. Heart loss/drop on death only fires in listed worlds.
+# mode: ALL (no restriction) | WHITELIST (only listed worlds) | BLACKLIST (everything except listed).
+worlds:
+  mode: ALL
+  list:
+  - world
+  - world_nether
+  - world_the_end
+
+# Broadcast a server-wide message when a heart is stolen/dropped.
+kill-broadcast:
+  pvp-enabled: true
+  natural-enabled: false
+
+# Anti-farm: same attacker cannot cause the same victim to drop a heart repeatedly within this window.
+# When triggered, the death proceeds normally (respawn, XP, etc.) but NO heart is dropped and NO heart is lost.
+anti-farm:
+  enabled: true
+  cooldown-seconds: 300
+
+# Effects played when a heart is consumed or a heart drops from a kill.
+effects:
+  heart-consume:
+    enabled: true
+    sound: "ENTITY_PLAYER_LEVELUP"
+    volume: 1.0
+    pitch: 1.2
+    particle: "HEART"
+    particle-count: 12
+  heart-drop:
+    enabled: true
+    sound: "ENTITY_WITHER_SPAWN"
+    volume: 0.5
+    pitch: 1.3
+    particle: "DAMAGE_INDICATOR"
+    particle-count: 20
+
+# Natural death loses a heart and drops item?
+natural-death-drops-heart: false
+
+# Indirect kill credit (TNT, projectiles, etc.). End crystals are tricky; see code notes.
+indirect-kill-credit:
+  enabled: true
+  timeout-seconds: 10
+
+# Items
+items:
+  heart:
+    material: "NETHER_STAR"
+    name: "&cHeart"
+  revive-tool:
+    material: "DIAMOND"
+    name: "&9Revive Tool"
+
+# Punishment when a player reaches 0 hearts
+# type: BAN | KICK | COMMAND
+punishment:
+  type: "BAN"
+  ban-duration: "PERMANENT"   # e.g. "7d", "12h", "30m", or "PERMANENT"
+  run-commands:
+  # - "tempban {player} 7d ran out of hearts"
+
+# Console-only update checker on startup. Either set a Spigot resource ID, or a direct URL that returns a version string.
+update-checker:
+  enabled: true
+  spigot-resource-id: 0
+  url: ""
+

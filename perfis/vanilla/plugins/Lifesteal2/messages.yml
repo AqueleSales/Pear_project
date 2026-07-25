@@ -1,0 +1,106 @@
+prefix: "&8[&cLifesteal2&8]&7 "
+
+no-permission: "{prefix}&cNo permission."
+players-only: "{prefix}&cPlayers only."
+player-not-found: "{prefix}&cPlayer not found."
+amount-not-number: "{prefix}&cAmount must be a number."
+usage:
+  withdraw-self: "{prefix}&7Usage: &c/withdrawhearts <amount>"
+  withdraw-other: "{prefix}&7Usage: &c/withdrawhearts <player> <amount>"
+  takehearts: "{prefix}&7Usage: &c/takehearts <player> <amount>"
+  sethearts: "{prefix}&7Usage: &c/sethearts <player> <amount>"
+  giveheart: "{prefix}&7Usage: &c/giveheart <player> <amount>"
+
+hearts:
+  self: "{prefix}&cYou have &4{hearts}&c hearts."
+  other: "{prefix}&c{target} has &4{hearts}&c hearts."
+  max-reached: "{prefix}&cYou are already at the max hearts (&4{max}&c)."
+
+giveheart:
+  success: "{prefix}&7Gave &c{amount}&7 heart item(s) to &c{target}&7."
+
+sethearts:
+  success: "{prefix}&7Set &c{target}&7 to &c{hearts}&7 hearts (&a{delta}&7)."
+
+takehearts:
+  cannot-take-all: "{prefix}&cYou cannot take all of their hearts."
+  success: "{prefix}&7Took &c{amount}&7 heart(s) from &c{target}&7 and received items."
+
+withdraw:
+  cannot-withdraw-all: "{prefix}&cYou cannot withdraw all your hearts."
+  self-success: "{prefix}&7You withdrew &c{amount}&7 heart(s). Remaining: &c{remaining}"
+  other-success: "{prefix}&7Withdrew &c{amount}&7 heart(s) from &c{target}&7."
+
+heart-consume: "{prefix}&7Heart consumed. You now have &c{hearts}&7 hearts."
+
+recipes:
+  heart-added: "{prefix}&7Heart recipe added to your recipe book."
+  heart-missing: "{prefix}&cHeart recipe is misconfigured. Check console and config."
+  revive-added: "{prefix}&bRevive Tool recipe added to your recipe book."
+  revive-missing: "{prefix}&cRevive Tool recipe misconfigured. Check console/config."
+
+status:
+  ok: "{prefix}&aONLINE"
+  error-heart: "{prefix}&cERROR: Heart recipe not registered (try /heartrecipe or fix config)"
+  error-revive: "{prefix}&cERROR: Revive recipe not registered (try /revivetoolrecipe or fix config)"
+
+leaderboard:
+  header: "&c---- &4Heart Leaderboard &c----"
+  line: "&c{index}. &4{player}&7 - &4{hearts}&7 hearts"
+  line-banned: "&8{index}. &7{player} &8- BANNED"
+  empty: "{prefix}&7No data yet."
+
+help:
+  header: "&c------------------ &4Lifesteal2 Help &c------------------"
+  players:
+    - "&4Player Commands:"
+    - "&c/hearts &7→ Show your current hearts"
+    - "&c/hearts <player> &7→ View another player’s hearts (if permitted)"
+    - "&c/withdrawhearts <amount> &7→ Withdraw hearts as Heart items"
+    - "&c/heartrecipe &7→ Add Heart recipe to your book"
+    - "&c/revivetoolrecipe &7→ Add Revive Tool recipe to your book"
+    - "&7(Right-click &cHeart&7) → Gain one heart"
+    - "&7(Right-click &9Revive Tool&7) → Revive a banned player with configured hearts"
+  admins:
+    - ""
+    - "&4Admin Commands:"
+    - "&c/giveheart <player> <amount> &7→ Give hearts to a player"
+    - "&c/takehearts <player> <amount> &7→ Take hearts and receive items"
+    - "&c/withdrawhearts <player> <amount> &7→ Withdraw hearts from another player"
+    - "&c/sethearts <player> <amount> &7→ Set exact heart count"
+    - "&c/statuslifesteal &7→ Show plugin status"
+    - "&c/heartleaderboard &7→ Show top players by hearts"
+  footer: "&c---------------------------------------------------"
+
+revive:
+  none: "{prefix}&cThere are no players to revive right now."
+  open: "{prefix}&9Click ONE player to revive (consumes your Revive Tool)."
+  consumed-missing: "{prefix}&cYou no longer have a Revive Tool."
+  revived: "{prefix}&9You revived &b{target}&9 with &b{hearts}&9 hearts!"
+  gui-title: "&9Select one player to revive"
+  gui-disabled: "{prefix}&cThe revive GUI is disabled on this server."
+  page: "&7(Page &b{page}&7/&b{pages}&7)"
+  prompt: "{prefix}&9Type the username of the player to revive, &7or &bcancel&7 to abort, &7or &blist&7 to browse all pages."
+  prompt-timeout: "{prefix}&cRevive prompt timed out."
+  prompt-cancel: "{prefix}&7Revive prompt cancelled."
+  not-revivable: "{prefix}&c{name}&c is not in the revive list."
+  found-on-page: "{prefix}&9Opened page &b{page}&9 — &b{target}&9 is here."
+
+death:
+  pvp-drop: "{prefix}&cYou killed &4{dead}&c and they dropped a &4Heart&c!"
+  natural-drop: "{prefix}&cYou died and dropped a &4Heart&c."
+
+# Shown on the kick/ban screens. Prefix is NOT prepended. Placeholders: {player}.
+punishment:
+  ban-reason: "&cRan out of hearts."
+  kick-reason: "&cRan out of hearts."
+  join-kick-reason: "&cRan out of hearts."
+
+# Broadcast when a kill causes a heart drop. Leave message empty to disable for that path.
+kill-broadcast:
+  pvp: "{prefix}&c{killer}&7 killed &c{victim}&7 and stole a &4heart&7!"
+  natural: "{prefix}&c{victim}&7 died and dropped a &4heart&7."
+
+# Anti-farm notice (shown to attacker, not broadcast). Leave empty to silence.
+anti-farm:
+  blocked: "{prefix}&7You already drained a heart from &c{victim}&7 recently."

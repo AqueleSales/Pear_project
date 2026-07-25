@@ -1,0 +1,5 @@
+[2026-07-24 22:31:02][DETALHADO] Loading BlueMap v5.22 (fe5115d5548a30d34175b8e0449aaca280af199f) on spigot null ...
+[2026-07-24 22:31:02][ADVERTÊNCIA] BlueMap is missing important resources!
+[2026-07-24 22:31:02][ADVERTÊNCIA] You must accept the required file download in order for BlueMap to work!
+[2026-07-24 22:31:02][ADVERTÊNCIA] Please check: D:\Pear_project\perfis\vanilla\plugins\BlueMap\core.conf
+[2026-07-24 22:31:02][INFORMAÇÕES] If you have changed the config you can simply reload the plugin using: /bluemap reload

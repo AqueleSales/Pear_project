@@ -1,0 +1,19 @@
+
+serverAddr = "163.176.54.0"
+serverPort = 7000
+auth.method = "token"
+auth.token = "pear_DSMP_2026_secreto"
+
+[[proxies]]
+name = "pear_tcp_Aquele_sales_2105fb"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 25565
+remotePort = 25577
+
+[[proxies]]
+name = "pear_udp_Aquele_sales_2105fb"
+type = "udp"
+localIP = "127.0.0.1"
+localPort = 24454
+remotePort = 24454

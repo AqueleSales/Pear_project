@@ -42,7 +42,7 @@ class HostRegisterReq(BaseModel):
     player_uuid: str
     player_name: str
     hardware_tier: str
-    version: str = "1.21.1"
+    version: str = "26.1.2"
 
 class TunnelUpdateReq(BaseModel):
     player_uuid: str
